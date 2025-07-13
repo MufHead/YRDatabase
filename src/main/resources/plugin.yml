@@ -1,0 +1,21 @@
+name: YRDatabase
+version: 1.0-SNAPSHOT
+main: com.yirankuma.yrdatabase.YRDatabase
+api: ["1.0.0"]
+author: YiranKuma
+description: "通用数据库管理前置插件，支持Redis和MySQL"
+website: "https://github.com/yirankuma/yrdatabase"
+
+commands:
+  yrdb:
+    description: "YRDatabase 主命令"
+    usage: "/yrdb [status|reload|test]"
+    permission: yrdatabase.admin
+
+permissions:
+  yrdatabase.admin:
+    description: "YRDatabase 管理权限"
+    default: op
+  yrdatabase.use:
+    description: "YRDatabase 使用权限"
+    default: true
