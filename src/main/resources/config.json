@@ -1,4 +1,5 @@
 {
+  "UseNeteaseUid": false,
   "redis": {
     "enabled": true,
     "host": "localhost",

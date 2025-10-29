@@ -1,5 +1,7 @@
 package com.yirankuma.yrdatabase.api;
 
+import cn.nukkit.Player;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -161,6 +163,15 @@ public interface DatabaseManager {
      * @return 数据行
      */
     CompletableFuture<Map<String, Object>> smartGet(String tableName, String key, Map<String, String> tableSchema);
+
+    /**
+     * 智能获取数据 - 自动检测表并创建，优先从Redis读取，其次MySQL
+     * @param tableName 表名
+     * @param player 玩家
+     * @param tableSchema 表结构定义（如果表不存在时使用）
+     * @return 数据行
+     */
+    CompletableFuture<Map<String, Object>> smartGet(String tableName, Player player, Map<String, String> tableSchema);
     
     /**
      * 智能设置数据 - 自动检测表并创建，智能选择存储位置
@@ -172,7 +183,19 @@ public interface DatabaseManager {
      * @return 是否成功
      */
     CompletableFuture<Boolean> smartSet(String tableName, String key, Map<String, Object> data, Map<String, String> tableSchema, long cacheExpireSeconds);
-    
+
+
+    /**
+     * 智能设置数据 - 自动检测表并创建，智能选择存储位置
+     * @param tableName 表名
+     * @param player 玩家
+     * @param data 数据
+     * @param tableSchema 表结构定义（如果表不存在时使用）
+     * @param cacheExpireSeconds Redis缓存过期时间（秒），-1表示永不过期
+     * @return 是否成功
+     */
+    CompletableFuture<Boolean> smartSet(String tableName, Player player, Map<String, Object> data, Map<String, String> tableSchema, long cacheExpireSeconds);
+
     /**
      * 智能删除数据 - 同时从Redis和MySQL删除
      * @param tableName 表名
@@ -180,6 +203,14 @@ public interface DatabaseManager {
      * @return 是否成功
      */
     CompletableFuture<Boolean> smartDelete(String tableName, String key);
+
+    /**
+     * 智能删除数据 - 同时从Redis和MySQL删除
+     * @param tableName 表名
+     * @param player 玩家
+     * @return 是否成功
+     */
+    CompletableFuture<Boolean> smartDelete(String tableName, Player player);
     
     /**
      * 智能批量获取数据
@@ -227,6 +258,15 @@ public interface DatabaseManager {
      * @return 是否成功
      */
     CompletableFuture<Boolean> persistAndClearCache(String tableName, String key, Map<String, String> tableSchema);
+
+    /**
+     * 将Redis缓存数据持久化到MySQL并删除Redis缓存
+     * @param tableName 表名
+     * @param player 玩家
+     * @param tableSchema 表结构定义
+     * @return 是否成功
+     */
+    CompletableFuture<Boolean> persistAndClearCache(String tableName, Player player, Map<String, String> tableSchema);
     
     /**
      * 批量将Redis缓存数据持久化到MySQL并删除Redis缓存
@@ -252,6 +292,7 @@ public interface DatabaseManager {
      * @return 是否成功
      */
     CompletableFuture<Boolean> persistPlayerData(String playerId, Map<String, Map<String, String>> tableSchemas);
+    CompletableFuture<Boolean> persistPlayerData(Player player, Map<String, Map<String, String>> tableSchemas);
     
     /**
      * 只清理Redis缓存，不持久化

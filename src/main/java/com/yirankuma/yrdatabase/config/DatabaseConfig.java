@@ -1,5 +1,7 @@
 package com.yirankuma.yrdatabase.config;
 
+import com.google.gson.annotations.SerializedName;
+
 public class DatabaseConfig {
     
     public static class Redis {
@@ -88,10 +90,16 @@ public class DatabaseConfig {
     
     private Redis redis = new Redis();
     private MySQL mysql = new MySQL();
-    
+
+    @SerializedName("UseNeteaseUid")
+    private boolean useNeteaseUid = false;
+
+    public boolean isUseNeteaseUid() { return useNeteaseUid; }
+    public void setUseNeteaseUid(boolean useNeteaseUid) { this.useNeteaseUid = useNeteaseUid; }
+
     public Redis getRedis() { return redis; }
     public void setRedis(Redis redis) { this.redis = redis; }
-    
+
     public MySQL getMysql() { return mysql; }
     public void setMysql(MySQL mysql) { this.mysql = mysql; }
 }

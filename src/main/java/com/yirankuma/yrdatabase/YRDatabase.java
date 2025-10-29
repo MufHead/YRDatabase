@@ -1,5 +1,6 @@
 package com.yirankuma.yrdatabase;
 
+import cn.nukkit.Player;
 import cn.nukkit.plugin.PluginBase;
 import cn.nukkit.utils.Config;
 import cn.nukkit.utils.TextFormat;
@@ -7,6 +8,7 @@ import cn.nukkit.command.Command;
 import cn.nukkit.command.CommandSender;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.neteasemc.nukkitmaster.NukkitMaster;
 import com.yirankuma.yrdatabase.api.DatabaseManager;
 import com.yirankuma.yrdatabase.config.DatabaseConfig;
 import com.yirankuma.yrdatabase.impl.DatabaseManagerImpl;
@@ -15,6 +17,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.UUID;
 
 public class YRDatabase extends PluginBase {
     
@@ -22,6 +25,12 @@ public class YRDatabase extends PluginBase {
     private DatabaseManager databaseManager;
     private DatabaseConfig config;
     private Gson gson;
+
+    public NukkitMaster nukkitMaster = null;
+
+    public boolean isNukkitMasterLoaded() {
+        return nukkitMaster != null;
+    }
     
     @Override
     public void onEnable() {
@@ -29,6 +38,9 @@ public class YRDatabase extends PluginBase {
         gson = new GsonBuilder().setPrettyPrinting().create();
         
         this.getLogger().info(TextFormat.GREEN + "YRDatabase 插件正在启用...");
+
+        //获取前置
+        loadPrePlugins();
         
         // 加载配置
         loadConfig();
@@ -42,6 +54,17 @@ public class YRDatabase extends PluginBase {
         
         this.getLogger().info(TextFormat.GREEN + "YRDatabase 插件已成功启用！");
     }
+
+    public void loadPrePlugins() {
+        nukkitMaster = (NukkitMaster) getServer().getPluginManager().getPlugin("NukkitMaster");
+        if (nukkitMaster == null) {
+            this.getLogger().warning(TextFormat.RED + "前置插件NukkitMaster 插件未找到！");
+        }else{
+            this.getLogger().info(TextFormat.GREEN + "前置插件NukkitMaster 插件已找到！");
+        }
+    }
+
+
     
     @Override
     public void onDisable() {
@@ -213,5 +236,29 @@ public class YRDatabase extends PluginBase {
     
     public static DatabaseManager getDatabaseManager() {
         return instance != null ? instance.databaseManager : null;
+    }
+    
+    public boolean isUseNeteaseUid() {
+        return config != null && config.isUseNeteaseUid();
+    }
+
+    public String resolvePlayerId(Player player) {
+        if (player == null) return null;
+        if (config != null && config.isUseNeteaseUid() && isNukkitMasterLoaded()) {
+            try {
+                long proxyUid = com.neteasemc.nukkitmaster.NukkitMaster.getInstance()
+                        .getGeyserMsgListener()
+                        .getPlayerInfo(player)
+                        .getProxyUid();
+
+                if (proxyUid != 0) {
+                    return Long.toString(proxyUid);
+                }else{
+                    getLogger().warning(String.format("§c玩家 §a%s §c客户端非正式客户端，使用UUID作为玩家ID", player.getName()));
+                }
+            } catch (Exception ignored) { }
+        }
+        UUID uuid = player.getUniqueId();
+        return uuid != null ? uuid.toString() : player.getName();
     }
 }

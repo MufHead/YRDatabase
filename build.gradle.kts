@@ -13,8 +13,8 @@ repositories {
 }
 
 dependencies {
-    // Nukkit 核心
-    compileOnly(files("libs/nukkit.jar"))
+    // 所有libs的jar文件
+    compileOnly(fileTree("libs").include("*.jar"))
     
     // Redis 客户端 - Lettuce (Java 8 兼容版本)
     implementation("io.lettuce:lettuce-core:6.1.10.RELEASE")
@@ -41,8 +41,8 @@ dependencies {
 
 // Java 版本配置
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    sourceCompatibility = JavaVersion.VERSION_1_9
+    targetCompatibility = JavaVersion.VERSION_1_9
 }
 
 // 编译配置
