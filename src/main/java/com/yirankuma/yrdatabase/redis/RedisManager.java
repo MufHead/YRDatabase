@@ -1,5 +1,6 @@
 package com.yirankuma.yrdatabase.redis;
 
+import com.yirankuma.yrdatabase.YRDatabase;
 import com.yirankuma.yrdatabase.config.DatabaseConfig;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
@@ -61,7 +62,9 @@ public class RedisManager {
             
         } catch (Exception e) {
             connected = false;
-            throw new RuntimeException("Failed to initialize Redis connection", e);
+            // 记录警告而不是抛出异常
+            YRDatabase.getInstance().getLogger().error("Redis 连接失败: " + e.getMessage());
+            YRDatabase.getInstance().getLogger().error("请检查 Redis 配置: host=" + config.getHost() + ", port=" + config.getPort() + ", database=" + config.getDatabase());
         }
     }
     

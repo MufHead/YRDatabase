@@ -1,5 +1,9 @@
 package com.yirankuma.yrdatabase.impl;
 
+import cn.nukkit.Nukkit;
+import cn.nukkit.Player;
+import cn.nukkit.Server;
+import com.yirankuma.yrdatabase.YRDatabase;
 import com.yirankuma.yrdatabase.api.DatabaseManager;
 import com.yirankuma.yrdatabase.config.DatabaseConfig;
 import com.yirankuma.yrdatabase.mysql.MySQLManager;
@@ -55,7 +59,10 @@ public class DatabaseManagerImpl implements DatabaseManager {
         }
 
         if (!hasValidConnection) {
-            throw new RuntimeException("无法连接到任何数据库！请检查 Redis 或 MySQL 配置。");
+            // 显示警告而不是抛出异常
+            YRDatabase.getInstance().getLogger().error("警告: 无法连接到任何数据库！");
+            YRDatabase.getInstance().getLogger().error("请检查 Redis 或 MySQL 配置。");
+            YRDatabase.getInstance().getLogger().error("系统将继续运行，但数据库功能将不可用。");
         }
     }
 
@@ -339,6 +346,49 @@ public class DatabaseManagerImpl implements DatabaseManager {
                         return redisManager.get(redisKey)
                                 .thenCompose(cachedData -> {
                                     if (cachedData != null) {
+                                        try {
+                                            @SuppressWarnings("unchecked")
+                                            Map<String, Object> data = gson.fromJson(cachedData, Map.class);
+                                            return CompletableFuture.completedFuture(data);
+                                        } catch (Exception e) {
+                                            // JSON解析失败，从MySQL重新获取
+                                            return getFromMySQLTable(tableName, key);
+                                        }
+                                    } else {
+                                        // Redis中没有，从MySQL获取
+                                        return getFromMySQLTable(tableName, key)
+                                                .thenCompose(mysqlData -> {
+                                                    if (mysqlData != null) {
+                                                        // 将MySQL数据缓存到Redis
+                                                        String jsonData = gson.toJson(mysqlData);
+                                                        redisManager.set(redisKey, jsonData, 3600);
+                                                    }
+                                                    return CompletableFuture.completedFuture(mysqlData);
+                                                });
+                                    }
+                                });
+                    } else {
+                        // Redis不可用，直接从MySQL获取
+                        return getFromMySQLTable(tableName, key);
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> smartGet(String tableName, Player player, Map<String, String> tableSchema) {
+        String key = YRDatabase.getInstance().resolvePlayerId(player);
+        return ensureTable(tableName, tableSchema)
+                .thenCompose(tableReady -> {
+                    if (!tableReady) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+
+                    // 1. 先尝试从Redis获取
+                    if (redisManager.isConnected()) {
+                        String redisKey = buildRedisKey(tableName, key);
+                        return redisManager.get(redisKey)
+                                .thenCompose(cachedData -> {
+                                    if (cachedData != null) {
                                         // Redis中有数据，反序列化返回
                                         try {
                                             @SuppressWarnings("unchecked")
@@ -376,6 +426,46 @@ public class DatabaseManagerImpl implements DatabaseManager {
                         return CompletableFuture.completedFuture(false);
                     }
 
+                    // 准备数据（带主键）
+                    Map<String, Object> dataWithKey = new HashMap<>(data);
+                    String primaryKey = getPrimaryKeyColumn(tableSchema);
+                    if (primaryKey != null) {
+                        dataWithKey.put(primaryKey, key);
+                    }
+
+                    // 优先写入Redis
+                    if (redisManager.isConnected()) {
+                        String redisKey = buildRedisKey(tableName, key);
+                        String jsonData = gson.toJson(data);
+                        return redisManager.set(redisKey, jsonData, cacheExpireSeconds)
+                                .thenApply(redisSuccess -> {
+                                    if (redisSuccess) {
+                                        // Redis写入成功即可返回成功
+                                        return true;
+                                    } else {
+                                        // Redis失败则落盘到MySQL
+                                        return saveToMySQL(tableName, key, dataWithKey, tableSchema).join();
+                                    }
+                                });
+                    } else if (mysqlManager.isConnected()) {
+                        // Redis不可用时直接写MySQL
+                        return saveToMySQL(tableName, key, dataWithKey, tableSchema);
+                    } else {
+                        return CompletableFuture.completedFuture(false);
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> smartSet(String tableName, Player player, Map<String, Object> data, Map<String, String> tableSchema, long cacheExpireSeconds) {
+        String key = YRDatabase.getInstance().resolvePlayerId(player);
+
+        return ensureTable(tableName, tableSchema)
+                .thenCompose(tableReady -> {
+                    if (!tableReady) {
+                        return CompletableFuture.completedFuture(false);
+                    }
+
                     // 准备数据
                     Map<String, Object> dataWithKey = new HashMap<>(data);
                     String primaryKey = getPrimaryKeyColumn(tableSchema);
@@ -407,26 +497,40 @@ public class DatabaseManagerImpl implements DatabaseManager {
                 });
     }
 
-    // 辅助方法：保存到 MySQL
-    private CompletableFuture<Boolean> saveToMySQL(String tableName, String key, Map<String, Object> dataWithKey, Map<String, String> tableSchema) {
-        String primaryKey = getPrimaryKeyColumn(tableSchema);
-        Map<String, Object> whereCondition = primaryKey != null ?
-                Map.of(primaryKey, key) : new HashMap<>();
+    @Override
+    public CompletableFuture<Boolean> smartDelete(String tableName, String key) {
+        CompletableFuture<Boolean> redisFuture = CompletableFuture.completedFuture(true);
+        CompletableFuture<Boolean> mysqlFuture = CompletableFuture.completedFuture(true);
 
-        return mysqlManager.selectFromTable(tableName, whereCondition)
-                .thenCompose(existingRows -> {
-                    if (!existingRows.isEmpty()) {
-                        // 记录存在，执行更新
-                        return mysqlManager.updateTable(tableName, dataWithKey, whereCondition);
-                    } else {
-                        // 记录不存在，执行插入
-                        return mysqlManager.insertIntoTable(tableName, dataWithKey);
-                    }
-                });
+        // 1. Redis 删除
+        if (redisManager.isConnected()) {
+            String redisKey = buildRedisKey(tableName, key);
+            redisFuture = redisManager.delete(redisKey);
+        }
+
+        // 2. MySQL 删除
+        if (mysqlManager.isConnected()) {
+            mysqlFuture = getTablePrimaryKey(tableName)
+                    .thenCompose(primaryKey -> {
+                        if (primaryKey != null) {
+                            Map<String, Object> whereCondition = Map.of(primaryKey, key);
+                            return mysqlManager.deleteFromTable(tableName, whereCondition);
+                        }
+                        return CompletableFuture.completedFuture(false);
+                    });
+        }
+
+        CompletableFuture<Boolean> finalRedisFuture = redisFuture;
+        CompletableFuture<Boolean> finalMysqlFuture = mysqlFuture;
+        return CompletableFuture.allOf(redisFuture, mysqlFuture)
+                .thenApply(v -> finalRedisFuture.join() || finalMysqlFuture.join());
     }
 
     @Override
-    public CompletableFuture<Boolean> smartDelete(String tableName, String key) {
+    public CompletableFuture<Boolean> smartDelete(String tableName, Player player) {
+
+        String key = YRDatabase.getInstance().resolvePlayerId(player);
+
         CompletableFuture<Boolean> redisFuture = CompletableFuture.completedFuture(true);
         CompletableFuture<Boolean> mysqlFuture = CompletableFuture.completedFuture(true);
 
@@ -640,6 +744,24 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
     // ========== 私有辅助方法 ==========
 
+
+    // 辅助方法：保存到 MySQL
+    private CompletableFuture<Boolean> saveToMySQL(String tableName, String key, Map<String, Object> dataWithKey, Map<String, String> tableSchema) {
+        String primaryKey = getPrimaryKeyColumn(tableSchema);
+        Map<String, Object> whereCondition = primaryKey != null ?
+                Map.of(primaryKey, key) : new HashMap<>();
+
+        return mysqlManager.selectFromTable(tableName, whereCondition)
+                .thenCompose(existingRows -> {
+                    if (!existingRows.isEmpty()) {
+                        // 记录存在，执行更新
+                        return mysqlManager.updateTable(tableName, dataWithKey, whereCondition);
+                    } else {
+                        // 记录不存在，执行插入
+                        return mysqlManager.insertIntoTable(tableName, dataWithKey);
+                    }
+                });
+    }
     private String buildRedisKey(String tableName, String key) {
         return "table:" + tableName + ":" + key;
     }
@@ -735,7 +857,7 @@ public class DatabaseManagerImpl implements DatabaseManager {
                         try {
                             @SuppressWarnings("unchecked")
                             Map<String, Object> data = gson.fromJson(cachedData, Map.class);
-                            
+
                             // 如果MySQL可用，先持久化到MySQL
                             if (mysqlManager.isConnected()) {
                                 Map<String, Object> dataWithKey = new HashMap<>(data);
@@ -743,7 +865,53 @@ public class DatabaseManagerImpl implements DatabaseManager {
                                 if (primaryKey != null) {
                                     dataWithKey.put(primaryKey, key);
                                 }
-                                
+
+                                return saveToMySQL(tableName, key, dataWithKey, tableSchema)
+                                        .thenCompose(mysqlSuccess -> {
+                                            if (mysqlSuccess) {
+                                                // MySQL保存成功，删除Redis缓存
+                                                return redisManager.delete(redisKey);
+                                            } else {
+                                                // MySQL保存失败，不删除缓存
+                                                return CompletableFuture.completedFuture(false);
+                                            }
+                                        });
+                            } else {
+                                // MySQL不可用，只删除Redis缓存
+                                return redisManager.delete(redisKey);
+                            }
+                        } catch (Exception e) {
+                            return CompletableFuture.completedFuture(false);
+                        }
+                    } else {
+                        // 缓存中没有数据，返回true（认为操作成功）
+                        return CompletableFuture.completedFuture(true);
+                    }
+                });
+    }
+    public CompletableFuture<Boolean> persistAndClearCache(String tableName, Player player, Map<String, String> tableSchema) {
+        if (!redisManager.isConnected()) {
+            return CompletableFuture.completedFuture(false);
+        }
+
+        String key = YRDatabase.getInstance().resolvePlayerId(player);
+
+        String redisKey = buildRedisKey(tableName, key);
+        return redisManager.get(redisKey)
+                .thenCompose(cachedData -> {
+                    if (cachedData != null) {
+                        try {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> data = gson.fromJson(cachedData, Map.class);
+
+                            // 如果MySQL可用，先持久化到MySQL
+                            if (mysqlManager.isConnected()) {
+                                Map<String, Object> dataWithKey = new HashMap<>(data);
+                                String primaryKey = getPrimaryKeyColumn(tableSchema);
+                                if (primaryKey != null) {
+                                    dataWithKey.put(primaryKey, key);
+                                }
+
                                 return saveToMySQL(tableName, key, dataWithKey, tableSchema)
                                         .thenCompose(mysqlSuccess -> {
                                             if (mysqlSuccess) {
@@ -807,6 +975,23 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
     @Override
     public CompletableFuture<Boolean> persistPlayerData(String playerId, Map<String, Map<String, String>> tableSchemas) {
+        List<CompletableFuture<Boolean>> persistFutures = tableSchemas.entrySet().stream()
+                .map(entry -> {
+                    String tableName = entry.getKey();
+                    Map<String, String> tableSchema = entry.getValue();
+                    return persistAndClearCache(tableName, playerId, tableSchema);
+                })
+                .collect(Collectors.toList());
+
+        return CompletableFuture.allOf(persistFutures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> persistFutures.stream().allMatch(CompletableFuture::join));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> persistPlayerData(Player player, Map<String, Map<String, String>> tableSchemas) {
+
+        String playerId = YRDatabase.getInstance().resolvePlayerId(player);
+
         List<CompletableFuture<Boolean>> persistFutures = tableSchemas.entrySet().stream()
                 .map(entry -> {
                     String tableName = entry.getKey();

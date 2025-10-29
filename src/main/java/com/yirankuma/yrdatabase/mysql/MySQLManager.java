@@ -1,5 +1,6 @@
 package com.yirankuma.yrdatabase.mysql;
 
+import com.yirankuma.yrdatabase.YRDatabase;
 import com.yirankuma.yrdatabase.config.DatabaseConfig;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -61,7 +62,9 @@ public class MySQLManager {
             
         } catch (Exception e) {
             connected = false;
-            throw new RuntimeException("Failed to initialize MySQL connection", e);
+            // 记录警告而不是抛出异常
+            YRDatabase.getInstance().getLogger().error("MySQL 连接失败: " + e.getMessage());
+            YRDatabase.getInstance().getLogger().error("请检查 MySQL 配置: host=" + config.getHost() + ", port=" + config.getPort() + ", database=" + config.getDatabase());
         }
     }
     
