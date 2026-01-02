@@ -244,20 +244,20 @@ public class YRDatabase extends PluginBase {
 
     public String resolvePlayerId(Player player) {
         if (player == null) return null;
-        if (config != null && config.isUseNeteaseUid() && isNukkitMasterLoaded()) {
-            try {
-                long proxyUid = com.neteasemc.nukkitmaster.NukkitMaster.getInstance()
-                        .getGeyserMsgListener()
-                        .getPlayerInfo(player)
-                        .getProxyUid();
-
-                if (proxyUid != 0) {
-                    return Long.toString(proxyUid);
-                }else{
-                    getLogger().warning(String.format("§c玩家 §a%s §c客户端非正式客户端，使用UUID作为玩家ID", player.getName()));
-                }
-            } catch (Exception ignored) { }
-        }
+//        if (config != null && config.isUseNeteaseUid() && isNukkitMasterLoaded()) {
+//            try {
+//                long proxyUid = com.neteasemc.nukkitmaster.NukkitMaster.getInstance()
+//                        .getGeyserMsgListener()
+//                        .getPlayerInfo(player)
+//                        .getProxyUid();
+//
+//                if (proxyUid != 0) {
+//                    return Long.toString(proxyUid);
+//                }else{
+//                    getLogger().warning(String.format("§c玩家 §a%s §c客户端非正式客户端，使用UUID作为玩家ID", player.getName()));
+//                }
+//            } catch (Exception ignored) { }
+//        }
         UUID uuid = player.getUniqueId();
         return uuid != null ? uuid.toString() : player.getName();
     }

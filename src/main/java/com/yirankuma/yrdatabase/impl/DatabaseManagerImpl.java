@@ -849,7 +849,6 @@ public class DatabaseManagerImpl implements DatabaseManager {
         if (!redisManager.isConnected()) {
             return CompletableFuture.completedFuture(false);
         }
-
         String redisKey = buildRedisKey(tableName, key);
         return redisManager.get(redisKey)
                 .thenCompose(cachedData -> {
@@ -989,14 +988,11 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
     @Override
     public CompletableFuture<Boolean> persistPlayerData(Player player, Map<String, Map<String, String>> tableSchemas) {
-
-        String playerId = YRDatabase.getInstance().resolvePlayerId(player);
-
         List<CompletableFuture<Boolean>> persistFutures = tableSchemas.entrySet().stream()
                 .map(entry -> {
                     String tableName = entry.getKey();
                     Map<String, String> tableSchema = entry.getValue();
-                    return persistAndClearCache(tableName, playerId, tableSchema);
+                    return persistAndClearCache(tableName, player, tableSchema);
                 })
                 .collect(Collectors.toList());
 
