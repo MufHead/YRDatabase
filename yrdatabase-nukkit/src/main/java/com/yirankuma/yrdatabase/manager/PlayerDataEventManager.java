@@ -45,7 +45,7 @@ public class PlayerDataEventManager implements Listener {
 
         if (pubSubListener != null) {
             // 有WaterdogPE，检查是否是真实在线
-            if (pubSubListener.isRealOnline(Long.parseLong(uid))) {
+            if (pubSubListener.isRealOnline(uid)) {
                 // 真实加入（WaterdogPE已发送REAL_JOIN消息）
                 callInitializeEvent(player, uid, PlayerDataInitializeEvent.InitializeReason.REAL_JOIN);
             } else {
@@ -72,7 +72,7 @@ public class PlayerDataEventManager implements Listener {
 
         if (pubSubListener != null) {
             // 有WaterdogPE，检查是否仍在真实在线列表
-            if (pubSubListener.isRealOnline(Long.parseLong(uid))) {
+            if (pubSubListener.isRealOnline(uid)) {
                 // 仍在线，说明是转服，不持久化
                 callPersistEvent(player, uid, PlayerDataPersistEvent.PersistReason.SERVER_TRANSFER);
             } else {

@@ -27,7 +27,8 @@ public class RedisPubSubListener implements io.lettuce.core.pubsub.RedisPubSubLi
     private StatefulRedisPubSubConnection<String, String> pubSubConnection;
 
     // 记录真实在线的玩家（UID -> 加入时间戳）
-    private final Map<Long, Long> realOnlinePlayers = new ConcurrentHashMap<>();
+    // 注意：UID可以是网易UID（数字）或UUID（字符串），统一使用String存储
+    private final Map<String, Long> realOnlinePlayers = new ConcurrentHashMap<>();
 
     public RedisPubSubListener(YRDatabase plugin) {
         this.plugin = plugin;
@@ -86,14 +87,14 @@ public class RedisPubSubListener implements io.lettuce.core.pubsub.RedisPubSubLi
     /**
      * 检查玩家是否真实在线（非转服）
      */
-    public boolean isRealOnline(long uid) {
+    public boolean isRealOnline(String uid) {
         return realOnlinePlayers.containsKey(uid);
     }
 
     /**
      * 移除玩家会话
      */
-    public void removePlayerSession(long uid) {
+    public void removePlayerSession(String uid) {
         realOnlinePlayers.remove(uid);
     }
 
@@ -158,8 +159,8 @@ public class RedisPubSubListener implements io.lettuce.core.pubsub.RedisPubSubLi
             String username = data.get("username").getAsString();
             long timestamp = data.get("timestamp").getAsLong();
 
-            // 记录玩家真实在线
-            realOnlinePlayers.put(uid, timestamp);
+            // 记录玩家真实在线（转换为字符串以支持UUID）
+            realOnlinePlayers.put(String.valueOf(uid), timestamp);
 
             plugin.getLogger().info("收到REAL_JOIN: " + username + " (UID: " + uid + ")");
             plugin.getLogger().debug("当前真实在线玩家数: " + realOnlinePlayers.size());
@@ -184,8 +185,8 @@ public class RedisPubSubListener implements io.lettuce.core.pubsub.RedisPubSubLi
             String username = data.get("username").getAsString();
             String lastServer = data.get("lastServer").getAsString();
 
-            // 移除玩家会话
-            realOnlinePlayers.remove(uid);
+            // 移除玩家会话（转换为字符串以支持UUID）
+            realOnlinePlayers.remove(String.valueOf(uid));
 
             plugin.getLogger().info("收到REAL_QUIT: " + username + " (UID: " + uid + ", 最后所在: " + lastServer + ")");
             plugin.getLogger().debug("当前真实在线玩家数: " + realOnlinePlayers.size());
