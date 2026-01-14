@@ -1,0 +1,6 @@
+name: YRDatabase-Waterdog
+version: 1.0.0
+main: com.yirankuma.yrdatabase.waterdog.YRDatabaseWaterdog
+author: YiranKuma
+api: ["1.0.0"]
+description: "YRDatabase代理端插件 - 负责检测玩家真实加入/退出"

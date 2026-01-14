@@ -12,7 +12,7 @@ softdepend:
 commands:
   yrdb:
     description: "YRDatabase 主命令"
-    usage: "/yrdb [status|reload|test]"
+    usage: "/yrdb [status|reload|sessions|queue]"
     permission: yrdatabase.admin
 
 permissions:

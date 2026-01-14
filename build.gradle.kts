@@ -1,92 +1,112 @@
+import org.gradle.api.tasks.javadoc.Javadoc
+import org.gradle.external.javadoc.StandardJavadocDocletOptions
+import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.MavenPublication
+
 plugins {
-    id("java")
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("com.github.johnrengelman.shadow") version "8.1.1" apply false
 }
 
 group = "com.yirankuma"
 version = "1.0-SNAPSHOT"
 
-repositories {
-    mavenCentral()
-    maven("https://repo.opencollab.dev/maven-releases/")
-    maven("https://repo.opencollab.dev/maven-snapshots/")
+// 所有子项目的公共配置
+allprojects {
+    group = "com.yirankuma"
+    version = "1.0-SNAPSHOT"
+
+    repositories {
+        mavenCentral()
+        maven("https://repo.opencollab.dev/maven-releases/")
+        maven("https://repo.opencollab.dev/maven-snapshots/")
+        maven("https://repo.waterdog.dev/main") // WaterdogPE仓库
+    }
 }
 
-dependencies {
-    // 所有libs的jar文件
-    compileOnly(fileTree("libs").include("*.jar"))
-    
-    // Redis 客户端 - Lettuce (Java 8 兼容版本)
-    implementation("io.lettuce:lettuce-core:6.1.10.RELEASE")
-    
-    // Apache Commons Pool2 (Java 8 兼容版本)
-    implementation("org.apache.commons:commons-pool2:2.9.0")
-    
-    // MySQL 连接池 - HikariCP (Java 8 兼容版本)
-    implementation("com.zaxxer:HikariCP:4.0.3")
-    
-    // MySQL JDBC 驱动
-    implementation("mysql:mysql-connector-java:8.0.33")
-    
-    // JSON 处理
-    implementation("com.google.code.gson:gson:2.10.1")
-    
-    // 日志 (Java 8 兼容版本)
-    implementation("org.slf4j:slf4j-api:1.7.36")
-    implementation("org.slf4j:slf4j-simple:1.7.36")
-    
-    testImplementation(platform("org.junit:junit-bom:5.9.1"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-}
+// 子项目通用配置
+subprojects {
+    apply(plugin = "java")
+    apply(plugin = "maven-publish")
 
-// Java 版本配置
-java {
-    sourceCompatibility = JavaVersion.VERSION_1_9
-    targetCompatibility = JavaVersion.VERSION_1_9
-}
+    configure<JavaPluginExtension> {
+        sourceCompatibility = JavaVersion.VERSION_1_9
+        targetCompatibility = JavaVersion.VERSION_1_9
+        withSourcesJar()
+        withJavadocJar()
+    }
 
-// 编译配置
-tasks.withType<JavaCompile> {
-    options.encoding = "UTF-8"
-}
+    tasks.withType<JavaCompile> {
+        options.encoding = "UTF-8"
+    }
 
-// Shadow JAR 配置
-tasks.shadowJar {
-    archiveClassifier.set("")
-    
-    // 重定位依赖包，避免与其他插件冲突
-    relocate("io.lettuce", "com.yirankuma.yrdatabase.libs.lettuce")
-    relocate("org.apache.commons.pool2", "com.yirankuma.yrdatabase.libs.pool2")
-    relocate("com.zaxxer.hikari", "com.yirankuma.yrdatabase.libs.hikari")
-    relocate("com.mysql", "com.yirankuma.yrdatabase.libs.mysql")
-    relocate("com.google.gson", "com.yirankuma.yrdatabase.libs.gson")
-    relocate("org.slf4j", "com.yirankuma.yrdatabase.libs.slf4j")
-    
-    // 排除不需要的文件
-    exclude("META-INF/DEPENDENCIES")
-    exclude("META-INF/LICENSE*")
-    exclude("META-INF/NOTICE*")
-    exclude("META-INF/*.SF")
-    exclude("META-INF/*.DSA")
-    exclude("META-INF/*.RSA")
-    exclude("META-INF/maven/**")
-    exclude("module-info.class")
-    
-    // 合并服务文件
-    mergeServiceFiles()
+    tasks.named<Javadoc>("javadoc") {
+        options.encoding = "UTF-8"
+        (options as StandardJavadocDocletOptions).apply {
+            charSet = "UTF-8"
+            encoding = "UTF-8"
+            // 禁用严格的Javadoc检查（避免因为缺少文档而失败）
+            addStringOption("Xdoclint:none", "-quiet")
+        }
+    }
 
-    //打包出的文件路径和名称
-    archiveFileName.set("YRDatabase.jar")
-    destinationDirectory.set(file("E:/ServerPLUGINS/网易NK服务器插件"))
-}
+    configure<PublishingExtension> {
+        publications {
+            create<MavenPublication>("maven") {
+                from(components["java"])
 
+                pom {
+                    name.set("${project.group}:${project.name}")
+                    description.set("YRDatabase - Redis+MySQL数据库前置插件，支持WaterdogPE跨服通信")
+                    url.set("https://github.com/MufHead/YRDatabase")
 
-// 禁用普通 jar 任务
-tasks.jar {
-    enabled = false
-}
+                    licenses {
+                        license {
+                            name.set("MIT License")
+                            url.set("https://opensource.org/licenses/MIT")
+                        }
+                    }
 
-// 测试配置
-tasks.test {
-    useJUnitPlatform()
+                    developers {
+                        developer {
+                            id.set("yirankuma")
+                            name.set("YiranKuma")
+                            email.set("your.email@example.com")
+                        }
+                    }
+
+                    scm {
+                        connection.set("scm:git:git://github.com/MufHead/YRDatabase.git")
+                        developerConnection.set("scm:git:ssh://github.com/MufHead/YRDatabase.git")
+                        url.set("https://github.com/MufHead/YRDatabase")
+                    }
+                }
+            }
+        }
+
+        repositories {
+            // 选项1: 本地Maven仓库（用于测试）
+            mavenLocal()
+
+            // 选项2: GitHub Packages
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/MufHead/YRDatabase")
+                credentials {
+                    username = project.findProperty("gpr.user") as String? ?: System.getenv("GITHUB_ACTOR")
+                    password = project.findProperty("gpr.token") as String? ?: System.getenv("GITHUB_TOKEN")
+                }
+            }
+
+            // 选项3: 自定义Maven仓库
+            maven {
+                name = "CustomRepo"
+                url = uri(project.findProperty("customRepo.url") as String? ?: "https://your-maven-repo.com/releases")
+                credentials {
+                    username = project.findProperty("customRepo.username") as String? ?: ""
+                    password = project.findProperty("customRepo.password") as String? ?: ""
+                }
+            }
+        }
+    }
 }

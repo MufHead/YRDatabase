@@ -9,6 +9,9 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/yrdatabase-common" />
+            <option value="$PROJECT_DIR$/yrdatabase-nukkit" />
+            <option value="$PROJECT_DIR$/yrdatabase-waterdog" />
           </set>
         </option>
       </GradleProjectSettings>

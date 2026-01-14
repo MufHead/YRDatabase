@@ -1,0 +1,25 @@
+# YRDatabase Maven发布配置示例
+# 复制此文件为 gradle.properties 并填入你的实际配置
+
+# Java路径
+org.gradle.java.home=C:\\Program Files\\Java\\jdk-21
+org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
+kotlin.stdlib.default.dependency=false
+
+# GitHub Packages 配置（选项1）
+# 获取token: https://github.com/settings/tokens (需要 write:packages 权限)
+gpr.user=your-github-username
+gpr.token=ghp_your_github_token_here
+
+# 自定义Maven仓库配置（选项2）
+customRepo.url=https://your-maven-repo.com/releases
+customRepo.username=your-username
+customRepo.password=your-password
+
+# Maven Central配置（选项3 - 最复杂但最通用）
+# 需要注册 https://issues.sonatype.org/
+ossrhUsername=your-sonatype-username
+ossrhPassword=your-sonatype-password
+signing.keyId=your-gpg-key-id
+signing.password=your-gpg-password
+signing.secretKeyRingFile=/path/to/secring.gpg

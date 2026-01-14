@@ -1,0 +1,26 @@
+{
+  "UseNeteaseUid": false,
+  "redis": {
+    "enabled": true,
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "database": 0,
+    "timeout": 5000,
+    "maxConnections": 20
+  },
+  "mysql": {
+    "enabled": true,
+    "host": "localhost",
+    "port": 3306,
+    "database": "yrdatabase",
+    "username": "root",
+    "password": "",
+    "timezone": "Asia/Shanghai",
+    "maxPoolSize": 10,
+    "minIdle": 2,
+    "connectionTimeout": 30000,
+    "idleTimeout": 600000,
+    "maxLifetime": 1800000
+  }
+}
