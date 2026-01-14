@@ -38,9 +38,9 @@ tasks.shadowJar {
     mergeServiceFiles()
 
     // 只在本地构建时输出到自定义目录，JitPack构建时使用默认目录
-    val customOutputDir = file("E:/ServerPLUGINS/网易NK服务器插件")
-    if (customOutputDir.exists()) {
-        destinationDirectory.set(customOutputDir)
+    // 通过环境变量JITPACK判断是否在JitPack环境
+    if (System.getenv("JITPACK") != "true") {
+        destinationDirectory.set(file("E:/ServerPLUGINS/网易NK服务器插件"))
     }
 }
 
