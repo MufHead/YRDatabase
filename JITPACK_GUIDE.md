@@ -8,9 +8,9 @@
 
 ## 📦 发布信息
 
-**JitPack地址**：https://jitpack.io/#MufHead/YRDatabase/v1.0.0
+**JitPack地址**：https://jitpack.io/#MufHead/YRDatabase/v1.0.1
 
-**最新版本**：`v1.0.0`
+**最新版本**：`v1.0.1`
 
 ---
 
@@ -26,13 +26,13 @@ repositories {
 
 dependencies {
     // 只使用API（最小依赖）
-    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.0")
+    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.1")
 
     // 或者依赖Nukkit插件（包含完整实现）
-    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-nukkit:v1.0.0")
+    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-nukkit:v1.0.1")
 
     // 或者依赖WaterdogPE插件
-    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-waterdog:v1.0.0")
+    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-waterdog:v1.0.1")
 }
 ```
 
@@ -45,7 +45,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.0'
+    compileOnly 'com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.1'
 }
 ```
 
@@ -63,7 +63,7 @@ dependencies {
     <dependency>
         <groupId>com.github.MufHead.YRDatabase</groupId>
         <artifactId>yrdatabase-common</artifactId>
-        <version>v1.0.0</version>
+        <version>v1.0.1</version>
         <scope>provided</scope>
     </dependency>
 </dependencies>
@@ -78,7 +78,7 @@ dependencies {
 **最小依赖，只包含API接口**
 
 ```kotlin
-compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.0")
+compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.1")
 ```
 
 **适用场景**：
@@ -93,7 +93,7 @@ compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.0")
 **完整的Nukkit插件实现**
 
 ```kotlin
-compileOnly("com.github.MufHead.YRDatabase:yrdatabase-nukkit:v1.0.0")
+compileOnly("com.github.MufHead.YRDatabase:yrdatabase-nukkit:v1.0.1")
 ```
 
 **包含**：
@@ -109,7 +109,7 @@ compileOnly("com.github.MufHead.YRDatabase:yrdatabase-nukkit:v1.0.0")
 **WaterdogPE代理端插件**
 
 ```kotlin
-compileOnly("com.github.MufHead.YRDatabase:yrdatabase-waterdog:v1.0.0")
+compileOnly("com.github.MufHead.YRDatabase:yrdatabase-waterdog:v1.0.1")
 ```
 
 **包含**：
@@ -150,7 +150,7 @@ dependencies {
     compileOnly("cn.nukkit:nukkit:1.0-SNAPSHOT")
 
     // YRDatabase API
-    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.0")
+    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.1")
 }
 ```
 
@@ -280,7 +280,7 @@ compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:7e7f1e2")
 
 ```kotlin
 // 使用稳定的release版本
-compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.0")
+compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.1")
 ```
 
 ### 开发测试
@@ -301,7 +301,7 @@ compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:master-SNAPSHOT")
 
 **主页**：https://jitpack.io/#MufHead/YRDatabase
 
-**特定版本**：https://jitpack.io/#MufHead/YRDatabase/v1.0.0
+**特定版本**：https://jitpack.io/#MufHead/YRDatabase/v1.0.1
 
 ---
 
@@ -316,7 +316,7 @@ compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:master-SNAPSHOT")
 应该能看到：
 ```
 compileClasspath - Compile classpath for source set 'main'.
-+--- com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.0
++--- com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.1
 ```
 
 ### 方法2：测试编译
@@ -357,7 +357,7 @@ compileClasspath - Compile classpath for source set 'main'.
 ### 问题1：JitPack构建失败
 
 **检查**：
-1. 访问 https://jitpack.io/#MufHead/YRDatabase/v1.0.0
+1. 访问 https://jitpack.io/#MufHead/YRDatabase/v1.0.1
 2. 点击 "Look up" 查看构建日志
 3. 确保项目有 `build.gradle.kts` 或 `build.gradle`
 
@@ -377,10 +377,10 @@ rm -rf ~/.gradle/caches/modules-2/files-2.1/com.github.MufHead.YRDatabase
 **检查依赖名称**：
 ```kotlin
 // ❌ 错误
-compileOnly("com.github.MufHead:YRDatabase:v1.0.0")
+compileOnly("com.github.MufHead:YRDatabase:v1.0.1")
 
 // ✅ 正确（注意是 .YRDatabase 不是 :YRDatabase）
-compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.0")
+compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.1")
 ```
 
 ---
@@ -397,7 +397,7 @@ compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.0")
 
 ## 🎉 总结
 
-✅ **已发布到JitPack**：v1.0.0
+✅ **已发布到JitPack**：v1.0.1
 ✅ **完全公开**：不需要任何身份验证
 ✅ **立即可用**：任何人都可以直接添加依赖
 
@@ -408,7 +408,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.0")
+    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-common:v1.0.1")
 }
 ```
 
@@ -417,5 +417,5 @@ dependencies {
 ---
 
 **发布日期**：2026-01-14
-**版本**：v1.0.0
+**版本**：v1.0.1
 **状态**：✅ 可用
