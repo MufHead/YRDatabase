@@ -37,9 +37,10 @@ tasks.shadowJar {
 
     mergeServiceFiles()
 
-    // 只在本地构建时输出到自定义目录，JitPack构建时使用默认目录
-    // 通过环境变量JITPACK判断是否在JitPack环境
-    if (System.getenv("JITPACK") != "true") {
+    // 只在本地构建时输出到自定义目录，CI环境使用默认目录
+    // 通过环境变量判断是否在CI环境（JitPack或Jenkins）
+    val isCI = System.getenv("JITPACK") == "true" || System.getenv("JENKINS_HOME") != null
+    if (!isCI) {
         destinationDirectory.set(file("E:/ServerPLUGINS/网易NK服务器插件"))
     }
 }
