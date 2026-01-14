@@ -43,3 +43,6 @@ bin/
 
 ### Gradle Properties (contains sensitive tokens) ###
 gradle.properties
+
+### Temporary files ###
+tmpclaude-*
