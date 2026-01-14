@@ -9,6 +9,9 @@ pipeline {
     environment {
         // 构建配置
         GRADLE_OPTS = '-Dorg.gradle.daemon=false'
+        // Lanink 仓库凭证（需要在 Jenkins 中配置 Credentials）
+        REPO_USERNAME = credentials('lanink-repo-username')
+        REPO_PASSWORD = credentials('lanink-repo-password')
     }
 
     stages {
@@ -65,12 +68,12 @@ pipeline {
                 branch 'master'
             }
             steps {
-                echo '发布到仓库...'
+                echo '发布到 Lanink Maven 仓库...'
                 script {
                     if (isUnix()) {
-                        sh './gradlew publish --no-daemon'
+                        sh './gradlew publishMavenPublicationToLaninkRepoRepository --no-daemon'
                     } else {
-                        bat 'gradlew.bat publish --no-daemon'
+                        bat 'gradlew.bat publishMavenPublicationToLaninkRepoRepository --no-daemon'
                     }
                 }
             }

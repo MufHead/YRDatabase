@@ -88,23 +88,28 @@ subprojects {
             // 选项1: 本地Maven仓库（用于测试）
             mavenLocal()
 
-            // 选项2: GitHub Packages
+            // 选项2: Lanink Maven 仓库（主要发布仓库）
+            maven {
+                name = "LaninkRepo"
+                // 根据版本是否包含 SNAPSHOT 来决定发布到哪个仓库
+                url = if (version.toString().endsWith("SNAPSHOT")) {
+                    uri("https://repo.lanink.cn/repository/maven-snapshots/")
+                } else {
+                    uri("https://repo.lanink.cn/repository/maven-releases/")
+                }
+                credentials {
+                    username = project.findProperty("repoUsername") as String? ?: System.getenv("REPO_USERNAME")
+                    password = project.findProperty("repoPassword") as String? ?: System.getenv("REPO_PASSWORD")
+                }
+            }
+
+            // 选项3: GitHub Packages
             maven {
                 name = "GitHubPackages"
                 url = uri("https://maven.pkg.github.com/MufHead/YRDatabase")
                 credentials {
                     username = project.findProperty("gpr.user") as String? ?: System.getenv("GITHUB_ACTOR")
                     password = project.findProperty("gpr.token") as String? ?: System.getenv("GITHUB_TOKEN")
-                }
-            }
-
-            // 选项3: 自定义Maven仓库
-            maven {
-                name = "CustomRepo"
-                url = uri(project.findProperty("customRepo.url") as String? ?: "https://your-maven-repo.com/releases")
-                credentials {
-                    username = project.findProperty("customRepo.username") as String? ?: ""
-                    password = project.findProperty("customRepo.password") as String? ?: ""
                 }
             }
         }

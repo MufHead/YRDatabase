@@ -34,10 +34,10 @@ dependencies {
 
 // Shadow JAR 配置
 tasks.shadowJar {
-    archiveClassifier.set("")
+    archiveClassifier.set("all")
 
     // 重定位依赖包，避免与其他插件冲突
-    relocate("com.yirankuma.yrdatabase.common", "com.yirankuma.yrdatabase.nukkit.libs.common")
+    // 注意：不重定位 yrdatabase 的主包，保持 API 可访问
     relocate("io.lettuce", "com.yirankuma.yrdatabase.nukkit.libs.lettuce")
     relocate("org.apache.commons.pool2", "com.yirankuma.yrdatabase.nukkit.libs.pool2")
     relocate("com.zaxxer.hikari", "com.yirankuma.yrdatabase.nukkit.libs.hikari")
@@ -59,18 +59,23 @@ tasks.shadowJar {
     // 合并服务文件
     mergeServiceFiles()
 
-    // 打包出的文件路径和名称
-    archiveFileName.set("YRDatabase.jar")
-
+    // 打包出的文件路径和名称（用于服务器运行）
     // 只在本地构建时输出到自定义目录，CI环境使用默认目录
-    // 通过环境变量判断是否在CI环境（JitPack或Jenkins）
     val isCI = System.getenv("JITPACK") == "true" || System.getenv("JENKINS_HOME") != null
     if (!isCI) {
-        destinationDirectory.set(file("E:/ServerPLUGINS/网易NK服务器插件"))
+        val serverPluginDir = file("E:/ServerPLUGINS/网易NK服务器插件")
+        doLast {
+            // 复制 shadowJar 到服务器插件目录并重命名为 YRDatabase.jar
+            copy {
+                from(archiveFile)
+                into(serverPluginDir)
+                rename { "YRDatabase.jar" }
+            }
+        }
     }
 }
 
-// 禁用普通 jar 任务
+// 保留普通 jar 任务（用于 Maven 发布）
 tasks.jar {
-    enabled = false
+    enabled = true
 }
