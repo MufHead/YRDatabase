@@ -9,7 +9,9 @@ import com.yirankuma.yrdatabase.config.DatabaseConfig;
 import com.yirankuma.yrdatabase.mysql.MySQLManager;
 import com.yirankuma.yrdatabase.redis.RedisManager;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
+import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,7 +25,12 @@ public class DatabaseManagerImpl implements DatabaseManager {
     private final boolean redisEnabled;
     private final boolean mysqlEnabled;
 
-    private final Gson gson = new Gson();
+    // 使用自定义的 Gson 配置，修复时间格式和数字类型问题
+    private final Gson gson = new GsonBuilder()
+            .registerTypeAdapter(Timestamp.class, new GsonTypeAdapters.TimestampAdapter())
+            .registerTypeAdapter(Date.class, new GsonTypeAdapters.DateAdapter())
+            .registerTypeAdapter(Number.class, new GsonTypeAdapters.NumberAdapter())
+            .create();
 
     // 缓存已创建的表，避免重复检查
     private final Set<String> createdTables = ConcurrentHashMap.newKeySet();

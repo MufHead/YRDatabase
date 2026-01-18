@@ -28,6 +28,7 @@ public class DatabaseManagerImpl implements DatabaseManager {
     // 使用自定义的 Gson 配置，修复时间格式和数字类型问题
     private final Gson gson = new GsonBuilder()
             .registerTypeAdapter(Timestamp.class, new GsonTypeAdapters.TimestampAdapter())
+            .registerTypeAdapter(Date.class, new GsonTypeAdapters.DateAdapter())
             .registerTypeAdapter(Number.class, new GsonTypeAdapters.NumberAdapter())
             .create();
 
