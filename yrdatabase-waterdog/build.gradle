@@ -30,7 +30,6 @@ shadowJar {
     // Relocate dependencies to avoid conflicts
     relocate 'io.lettuce', 'com.yirankuma.yrdatabase.waterdog.libs.lettuce'
     relocate 'io.netty', 'com.yirankuma.yrdatabase.waterdog.libs.netty'
-    relocate 'org.yaml.snakeyaml', 'com.yirankuma.yrdatabase.waterdog.libs.snakeyaml'
 }
 
 jar {
