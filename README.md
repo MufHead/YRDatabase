@@ -90,6 +90,22 @@ persist:
 
 其他插件可以通过 JitPack 依赖 YRDatabase API：
 
+| Artifact | 说明 |
+|----------|------|
+| `yrdatabase-api` | 平台无关的 API 与注解 |
+| `yrdatabase-core` | Redis/MySQL/SQLite 实现，可在独立环境中使用 |
+| `yrdatabase-allay` | Allay 平台插件（包含 `YRDatabaseAllay` 静态入口） |
+| `yrdatabase-nukkit` | NukkitMOT 平台插件 |
+| `yrdatabase-waterdog` | WaterdogPE 代理插件 |
+
+引用平台模块时同样使用 JitPack 坐标，例如 Allay 插件：
+
+```groovy
+dependencies {
+    compileOnly 'com.github.MufHead.YRDatabase:yrdatabase-allay:2.0.0'
+}
+```
+
 ### Gradle (Groovy)
 
 ```groovy

@@ -7,6 +7,8 @@ plugins {
 group = 'com.github.MufHead'
 version = '2.0.0'
 
+def shadedModules = ['yrdatabase-allay', 'yrdatabase-nukkit', 'yrdatabase-waterdog']
+
 allprojects {
     repositories {
         mavenCentral()
@@ -48,7 +50,15 @@ subprojects {
     publishing {
         publications {
             maven(MavenPublication) {
-                from components.java
+                if (shadedModules.contains(project.name)) {
+                    project.afterEvaluate {
+                        artifact tasks.named('shadowJar').get()
+                        artifact tasks.named('sourcesJar').get()
+                        artifact tasks.named('javadocJar').get()
+                    }
+                } else {
+                    from components.java
+                }
                 
                 pom {
                     name = project.name

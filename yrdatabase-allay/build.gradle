@@ -46,11 +46,3 @@ jar {
 
 // Ensure assemble uses shadowJar
 assemble.dependsOn shadowJar
-
-// Disable maven-publish for this module (users download JAR directly)
-tasks.withType(PublishToMavenRepository).configureEach {
-    enabled = false
-}
-tasks.withType(PublishToMavenLocal).configureEach {
-    enabled = false
-}
