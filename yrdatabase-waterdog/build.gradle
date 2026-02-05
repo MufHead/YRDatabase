@@ -1,0 +1,47 @@
+plugins {
+    id 'java-library'
+    id 'com.gradleup.shadow'
+}
+
+description = 'YRDatabase WaterdogPE - Proxy plugin for cross-server support'
+
+repositories {
+    maven { url 'https://repo.waterdog.dev/main' }
+    maven { url 'https://repo.waterdog.dev/snapshots' }
+}
+
+dependencies {
+    compileOnly 'dev.waterdog.waterdogpe:waterdog:2.0.3'
+    implementation project(':yrdatabase-api')
+    
+    // Redis client
+    implementation 'io.lettuce:lettuce-core:6.3.2.RELEASE'
+    
+    // Gson for JSON
+    implementation 'com.google.code.gson:gson:2.10.1'
+    
+    // SnakeYAML for config
+    implementation 'org.yaml:snakeyaml:2.2'
+}
+
+shadowJar {
+    archiveClassifier.set('')
+    
+    // Relocate dependencies to avoid conflicts
+    relocate 'io.lettuce', 'com.yirankuma.yrdatabase.waterdog.libs.lettuce'
+    relocate 'io.netty', 'com.yirankuma.yrdatabase.waterdog.libs.netty'
+    relocate 'org.yaml.snakeyaml', 'com.yirankuma.yrdatabase.waterdog.libs.snakeyaml'
+}
+
+jar {
+    dependsOn shadowJar
+    enabled = false
+}
+
+// Disable maven-publish for this module
+tasks.withType(PublishToMavenRepository).configureEach {
+    enabled = false
+}
+tasks.withType(PublishToMavenLocal).configureEach {
+    enabled = false
+}

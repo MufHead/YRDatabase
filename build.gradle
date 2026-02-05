@@ -1,0 +1,81 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'com.gradleup.shadow' version '9.0.0-beta11' apply false
+}
+
+group = 'com.github.MufHead'
+version = '1.0.0-SNAPSHOT'
+
+allprojects {
+    repositories {
+        mavenCentral()
+        maven { url 'https://repo.opencollab.dev/maven-releases/' }
+        maven { url 'https://repo.opencollab.dev/maven-snapshots/' }
+        maven { url 'https://repo.waterdog.dev/main' }
+        maven { url 'https://storehouse.okaeri.eu/repository/maven-public/' }
+        maven { url 'https://jitpack.io' }
+    }
+}
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'maven-publish'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+        withSourcesJar()
+        withJavadocJar()
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+
+    tasks.withType(Javadoc).configureEach {
+        options.encoding = 'UTF-8'
+        options.addStringOption('Xdoclint:none', '-quiet')
+        failOnError = false
+    }
+
+    dependencies {
+        compileOnly 'org.projectlombok:lombok:1.18.34'
+        annotationProcessor 'org.projectlombok:lombok:1.18.34'
+    }
+
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                from components.java
+                
+                pom {
+                    name = project.name
+                    description = project.description ?: 'YRDatabase module'
+                    url = 'https://github.com/MufHead/YRDatabase'
+                    
+                    licenses {
+                        license {
+                            name = 'MIT License'
+                            url = 'https://opensource.org/licenses/MIT'
+                        }
+                    }
+                    
+                    developers {
+                        developer {
+                            id = 'YiranKuma'
+                            name = 'YiranKuma'
+                        }
+                    }
+                    
+                    scm {
+                        connection = 'scm:git:git://github.com/MufHead/YRDatabase.git'
+                        developerConnection = 'scm:git:ssh://github.com/MufHead/YRDatabase.git'
+                        url = 'https://github.com/MufHead/YRDatabase'
+                    }
+                }
+            }
+        }
+    }
+}

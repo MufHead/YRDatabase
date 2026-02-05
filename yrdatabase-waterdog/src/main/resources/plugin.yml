@@ -1,0 +1,5 @@
+name: YRDatabase-Waterdog
+version: 1.0.0-SNAPSHOT
+author: YiranKuma
+main: com.yirankuma.yrdatabase.waterdog.YRDatabaseWaterdog
+description: YRDatabase cross-server session management for WaterdogPE proxy

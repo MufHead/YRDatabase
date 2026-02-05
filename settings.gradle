@@ -1,0 +1,6 @@
+rootProject.name = 'Allay-YRDatabase'
+
+include 'yrdatabase-api'
+include 'yrdatabase-core'
+include 'yrdatabase-allay'
+include 'yrdatabase-waterdog'

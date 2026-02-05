@@ -1,0 +1,19 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'YRDatabase API - Platform-independent interfaces and annotations'
+
+dependencies {
+    api 'com.google.code.gson:gson:2.10.1'
+    
+    // Test dependencies
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation 'org.mockito:mockito-core:5.11.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.11.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}
