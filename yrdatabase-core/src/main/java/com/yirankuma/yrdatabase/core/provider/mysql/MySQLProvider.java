@@ -43,6 +43,8 @@ public class MySQLProvider implements PersistProvider {
         return CompletableFuture.runAsync(() -> {
             try {
                 HikariConfig hikariConfig = new HikariConfig();
+                String driverClass = resolveDriverClass();
+                hikariConfig.setDriverClassName(driverClass);
                 hikariConfig.setJdbcUrl(String.format(
                         "jdbc:mysql://%s:%d/%s?useSSL=false&serverTimezone=%s&characterEncoding=utf8&allowPublicKeyRetrieval=true",
                         config.getHost(), config.getPort(), config.getDatabase(), config.getTimezone()
@@ -71,14 +73,30 @@ public class MySQLProvider implements PersistProvider {
                     connected = conn.isValid(5);
                 }
 
-                log.info("MySQL connected successfully to {}:{}/{}", 
-                        config.getHost(), config.getPort(), config.getDatabase());
+                log.info("MySQL connected successfully to {}:{}/{} using driver {}",
+                        config.getHost(), config.getPort(), config.getDatabase(), driverClass);
             } catch (Exception e) {
                 log.error("Failed to connect to MySQL: {}", e.getMessage());
                 connected = false;
                 throw new RuntimeException("Failed to connect to MySQL", e);
             }
         });
+    }
+
+    private String resolveDriverClass() throws ClassNotFoundException {
+        String[] candidates = {
+            "com.mysql.cj.jdbc.Driver",
+            "com.yirankuma.yrdatabase.libs.mysql.cj.jdbc.Driver"
+        };
+        for (String className : candidates) {
+            try {
+                Class.forName(className);
+                return className;
+            } catch (ClassNotFoundException ignored) {
+                // try next
+            }
+        }
+        throw new ClassNotFoundException("MySQL driver not found in classpath");
     }
 
     private <T> CompletableFuture<T> executeAsync(SqlFunction<T> function) {

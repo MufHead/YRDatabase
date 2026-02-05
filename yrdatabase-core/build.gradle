@@ -41,8 +41,6 @@ shadowJar {
     
     relocate 'io.lettuce', 'com.yirankuma.yrdatabase.libs.lettuce'
     relocate 'com.zaxxer.hikari', 'com.yirankuma.yrdatabase.libs.hikari'
-    relocate 'com.mysql', 'com.yirankuma.yrdatabase.libs.mysql'
-    relocate 'org.xerial', 'com.yirankuma.yrdatabase.libs.xerial'
     relocate 'org.apache.commons.pool2', 'com.yirankuma.yrdatabase.libs.pool2'
     relocate 'com.google.gson', 'com.yirankuma.yrdatabase.libs.gson'
     
