@@ -55,7 +55,14 @@ public class MySQLProvider implements PersistProvider {
                 hikariConfig.setMinimumIdle(config.getPool().getMinIdle());
                 hikariConfig.setConnectionTimeout(config.getPool().getConnectionTimeout());
                 hikariConfig.setIdleTimeout(config.getPool().getIdleTimeout());
-                hikariConfig.setMaxLifetime(config.getPool().getMaxLifetime());
+
+                long configMaxLifetime = config.getPool().getMaxLifetime();
+                long safeMaxLifetime = Math.min(configMaxLifetime, 30 * 60 * 1000L);
+                if (configMaxLifetime != safeMaxLifetime) {
+                    log.warn("MySQL maxLifetime {}ms exceeds Hikari recommendations, using {}ms instead",
+                            configMaxLifetime, safeMaxLifetime);
+                }
+                hikariConfig.setMaxLifetime(safeMaxLifetime);
                 hikariConfig.setPoolName("YRDatabase-MySQL");
 
                 // Performance optimizations
