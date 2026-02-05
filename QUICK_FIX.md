@@ -130,13 +130,13 @@ gradlew.bat build
 
 **Allay 服务器：**
 ```
-yrdatabase-allay/build/libs/yrdatabase-allay-1.0.0-SNAPSHOT.jar
+yrdatabase-allay/build/libs/yrdatabase-allay-2.0.0.jar
 → 复制到 Allay 服务器的 plugins/ 目录
 ```
 
 **WaterdogPE 代理（可选）：**
 ```
-yrdatabase-waterdog/build/libs/yrdatabase-waterdog-1.0.0-SNAPSHOT.jar
+yrdatabase-waterdog/build/libs/yrdatabase-waterdog-2.0.0.jar
 → 复制到 WaterdogPE 的 plugins/ 目录
 ```
 

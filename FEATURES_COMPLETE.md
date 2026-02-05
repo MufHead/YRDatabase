@@ -110,7 +110,7 @@ Restart the server to apply connection changes.
 **输出示例：**
 ```
 [YRDatabase] Plugin Information:
-Version: 1.0.0-SNAPSHOT
+Version: 2.0.0
 Author: YiranKuma
 Platform: Allay
 
@@ -505,20 +505,20 @@ set JAVA_HOME=C:\Program Files\Java\jdk-21
 gradlew.bat build
 
 # 生成的文件：
-# - yrdatabase-allay/build/libs/yrdatabase-allay-1.0.0-SNAPSHOT.jar
-# - yrdatabase-waterdog/build/libs/yrdatabase-waterdog-1.0.0-SNAPSHOT.jar
+# - yrdatabase-allay/build/libs/yrdatabase-allay-2.0.0.jar
+# - yrdatabase-waterdog/build/libs/yrdatabase-waterdog-2.0.0.jar
 ```
 
 ### 部署步骤
 
 **Allay 服务器：**
-1. 将 `yrdatabase-allay-1.0.0-SNAPSHOT.jar` 放入 `plugins/` 目录
+1. 将 `yrdatabase-allay-2.0.0.jar` 放入 `plugins/` 目录
 2. 启动服务器生成配置文件
 3. 编辑 `plugins/yrdatabase-allay/config.yml`
 4. 重启服务器
 
 **WaterdogPE 代理：**
-1. 将 `yrdatabase-waterdog-1.0.0-SNAPSHOT.jar` 放入 `plugins/` 目录
+1. 将 `yrdatabase-waterdog-2.0.0.jar` 放入 `plugins/` 目录
 2. 重启代理
 3. 确保所有子服配置为 `mode: cluster`
 

@@ -8,6 +8,7 @@ import cn.nukkit.event.player.PlayerJoinEvent;
 import cn.nukkit.event.player.PlayerQuitEvent;
 import com.yirankuma.yrdatabase.api.DatabaseManager;
 import com.yirankuma.yrdatabase.nukkit.YRDatabaseNukkit;
+import com.yirankuma.yrdatabase.nukkit.session.NukkitSessionBridge;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,6 +17,14 @@ import java.util.UUID;
 /**
  * Player event listener for NukkitMOT.
  * Handles player join/quit events for session management.
+ *
+ * <p>This listener:</p>
+ * <ul>
+ *   <li>Saves/loads player session data to database</li>
+ *   <li>Triggers session events via NukkitSessionBridge</li>
+ *   <li>In standalone mode, triggers local join/quit events</li>
+ *   <li>In proxy mode, waits for Redis confirmation from Waterdog</li>
+ * </ul>
  *
  * @author YiranKuma
  */
@@ -39,6 +48,14 @@ public class PlayerEventListener implements Listener {
         if (db == null) {
             plugin.getLogger().warning("Database not initialized, cannot load player data");
             return;
+        }
+
+        // Trigger local join event via session bridge
+        // In proxy mode, this will wait for Redis confirmation
+        // In standalone mode, this will immediately trigger the event
+        NukkitSessionBridge sessionBridge = YRDatabaseNukkit.getSessionBridge();
+        if (sessionBridge != null) {
+            sessionBridge.triggerLocalJoin(uuid.toString(), playerName);
         }
 
         // Load player session data asynchronously
@@ -71,7 +88,15 @@ public class PlayerEventListener implements Listener {
         UUID uuid = player.getUniqueId();
         String playerName = player.getName();
 
-        plugin.getLogger().debug("Player " + playerName + " quit, saving data...");
+        plugin.getLogger().debug("Player " + playerName + " quit, notifying session bridge...");
+
+        // Trigger local quit event via session bridge
+        // In proxy mode, this will wait for Redis confirmation before persisting
+        // In standalone mode, this will immediately trigger the event and persist
+        NukkitSessionBridge sessionBridge = YRDatabaseNukkit.getSessionBridge();
+        if (sessionBridge != null) {
+            sessionBridge.triggerLocalQuit(uuid.toString(), playerName);
+        }
 
         DatabaseManager db = YRDatabaseNukkit.getDatabaseManager();
         if (db == null) {
@@ -79,7 +104,8 @@ public class PlayerEventListener implements Listener {
             return;
         }
 
-        // Save player session data
+        // Save player session data to cache
+        // Actual persistence will be handled by session events
         Map<String, Object> sessionData = new HashMap<>();
         sessionData.put("uuid", uuid.toString());
         sessionData.put("name", playerName);
@@ -99,13 +125,13 @@ public class PlayerEventListener implements Listener {
         db.set("player_sessions", uuid.toString(), sessionData)
             .thenAccept(success -> {
                 if (success) {
-                    plugin.getLogger().debug("Saved session data for " + playerName);
+                    plugin.getLogger().debug("Cached session data for " + playerName);
                 } else {
-                    plugin.getLogger().warning("Failed to save session data for " + playerName);
+                    plugin.getLogger().warning("Failed to cache session data for " + playerName);
                 }
             })
             .exceptionally(e -> {
-                plugin.getLogger().error("Error saving session for " + playerName, e);
+                plugin.getLogger().error("Error caching session for " + playerName, e);
                 return null;
             });
 

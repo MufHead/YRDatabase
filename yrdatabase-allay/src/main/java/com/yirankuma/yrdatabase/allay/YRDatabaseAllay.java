@@ -1,9 +1,11 @@
 package com.yirankuma.yrdatabase.allay;
 
-import com.yirankuma.yrdatabase.api.DatabaseManager;
-import com.yirankuma.yrdatabase.api.config.DatabaseConfig;
 import com.yirankuma.yrdatabase.allay.command.YRDBCommand;
 import com.yirankuma.yrdatabase.allay.listener.PlayerEventListener;
+import com.yirankuma.yrdatabase.allay.session.AllaySessionBridge;
+import com.yirankuma.yrdatabase.api.DatabaseManager;
+import com.yirankuma.yrdatabase.api.config.DatabaseConfig;
+import com.yirankuma.yrdatabase.api.session.SessionManager;
 import com.yirankuma.yrdatabase.core.DatabaseManagerImpl;
 import lombok.Getter;
 import org.allaymc.api.plugin.Plugin;
@@ -12,6 +14,9 @@ import org.allaymc.api.server.Server;
 import org.allaymc.api.utils.config.Config;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 
 /**
  * YRDatabase plugin for Allay server.
@@ -26,9 +31,13 @@ public class YRDatabaseAllay extends Plugin {
     @Getter
     private static DatabaseManager databaseManager;
 
+    @Getter
+    private static AllaySessionBridge sessionBridge;
+
     private DatabaseManagerImpl databaseManagerImpl;
     private Config config;
     private PlayerEventListener playerEventListener;
+    private boolean proxyMode = false;
 
     @Override
     public void onLoad() {
@@ -43,8 +52,14 @@ public class YRDatabaseAllay extends Plugin {
         // Load configuration
         loadConfiguration();
 
+        // Check mode
+        proxyMode = "proxy".equalsIgnoreCase(config.getString("mode", "standalone"));
+
         // Initialize database manager
         initializeDatabase();
+
+        // Initialize session bridge
+        initSessionBridge();
 
         // Register event listeners
         registerListeners();
@@ -52,12 +67,18 @@ public class YRDatabaseAllay extends Plugin {
         // Register commands
         registerCommands();
 
-        pluginLogger.info("YRDatabase enabled successfully!");
+        pluginLogger.info("YRDatabase enabled successfully! (mode: {})", proxyMode ? "proxy" : "standalone");
     }
 
     @Override
     public void onDisable() {
         pluginLogger.info("YRDatabase is disabling...");
+
+        // Stop session bridge first
+        if (sessionBridge != null) {
+            sessionBridge.stop();
+            sessionBridge = null;
+        }
 
         // Persist all cached data
         if (playerEventListener != null) {
@@ -79,67 +100,27 @@ public class YRDatabaseAllay extends Plugin {
         }
 
         File configFile = new File(dataFolder, "config.yml");
-        config = new Config(configFile, Config.YAML, createDefaultConfig());
-        config.save();
+        
+        // Save default config from resources if not exists
+        if (!configFile.exists()) {
+            saveDefaultConfig(configFile);
+        }
 
+        config = new Config(configFile, Config.YAML);
         pluginLogger.info("Configuration loaded from {}", configFile.getAbsolutePath());
     }
 
-    private org.allaymc.api.utils.config.ConfigSection createDefaultConfig() {
-        org.allaymc.api.utils.config.ConfigSection defaults = new org.allaymc.api.utils.config.ConfigSection();
-
-        // Mode
-        defaults.set("mode", "standalone");
-
-        // Cache configuration
-        defaults.set("cache.enabled", true);
-        defaults.set("cache.type", "redis");
-        defaults.set("cache.host", "localhost");
-        defaults.set("cache.port", 6379);
-        defaults.set("cache.password", "");
-        defaults.set("cache.database", 0);
-        defaults.set("cache.timeout", 5000);
-        defaults.set("cache.pool.maxTotal", 20);
-        defaults.set("cache.pool.maxIdle", 10);
-        defaults.set("cache.pool.minIdle", 2);
-
-        // Persistence configuration
-        defaults.set("persist.enabled", true);
-        defaults.set("persist.type", "sqlite");
-
-        // MySQL
-        defaults.set("persist.mysql.host", "localhost");
-        defaults.set("persist.mysql.port", 3306);
-        defaults.set("persist.mysql.database", "yrdatabase");
-        defaults.set("persist.mysql.username", "root");
-        defaults.set("persist.mysql.password", "");
-        defaults.set("persist.mysql.timezone", "Asia/Shanghai");
-        defaults.set("persist.mysql.pool.maxSize", 10);
-        defaults.set("persist.mysql.pool.minIdle", 2);
-        defaults.set("persist.mysql.pool.connectionTimeout", 30000);
-        defaults.set("persist.mysql.pool.idleTimeout", 600000);
-        defaults.set("persist.mysql.pool.maxLifetime", 1800000);
-
-        // SQLite
-        defaults.set("persist.sqlite.file", "data/yrdatabase.db");
-
-        // Caching
-        defaults.set("caching.defaultTTL", 3600);
-        defaults.set("caching.playerDataTTL", 7200);
-        defaults.set("caching.autoRefresh", true);
-        defaults.set("caching.refreshThreshold", 300);
-
-        // Session
-        defaults.set("session.timeout", 300000);
-        defaults.set("session.heartbeatInterval", 10000);
-        defaults.set("session.messageExpiry", 30000);
-
-        // Advanced
-        defaults.set("advanced.asyncExecutorSize", 4);
-        defaults.set("advanced.enableMetrics", false);
-        defaults.set("advanced.debugMode", false);
-
-        return defaults;
+    private void saveDefaultConfig(File configFile) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream("config.yml")) {
+            if (is != null) {
+                Files.copy(is, configFile.toPath());
+                pluginLogger.info("Default configuration saved");
+            } else {
+                pluginLogger.warn("Could not find default config.yml in resources");
+            }
+        } catch (IOException e) {
+            pluginLogger.error("Failed to save default config: {}", e.getMessage());
+        }
     }
 
     private DatabaseConfig buildDatabaseConfig() {
@@ -225,6 +206,21 @@ public class YRDatabaseAllay extends Plugin {
         }
     }
 
+    private void initSessionBridge() {
+        if (databaseManager == null) {
+            pluginLogger.warn("Cannot initialize session bridge: DatabaseManager is null");
+            return;
+        }
+
+        try {
+            sessionBridge = new AllaySessionBridge(this, databaseManager, proxyMode);
+            sessionBridge.start();
+            pluginLogger.info("Session bridge initialized");
+        } catch (Exception e) {
+            pluginLogger.error("Failed to initialize session bridge: {}", e.getMessage());
+        }
+    }
+
     private void registerListeners() {
         playerEventListener = new PlayerEventListener(this);
         Server.getInstance().getEventBus().registerListener(playerEventListener);
@@ -252,5 +248,20 @@ public class YRDatabaseAllay extends Plugin {
      */
     public Config getPluginConfig() {
         return config;
+    }
+
+    /**
+     * Get the session manager.
+     * Use this to register session event listeners.
+     */
+    public static SessionManager getSessionManager() {
+        return sessionBridge != null ? sessionBridge.getSessionManager() : null;
+    }
+
+    /**
+     * Check if running in proxy mode.
+     */
+    public boolean isProxyMode() {
+        return proxyMode;
     }
 }

@@ -5,9 +5,11 @@ import cn.nukkit.plugin.PluginBase;
 import cn.nukkit.utils.Config;
 import com.yirankuma.yrdatabase.api.DatabaseManager;
 import com.yirankuma.yrdatabase.api.config.DatabaseConfig;
+import com.yirankuma.yrdatabase.api.session.SessionManager;
 import com.yirankuma.yrdatabase.core.DatabaseManagerImpl;
 import com.yirankuma.yrdatabase.nukkit.command.YRDBCommand;
 import com.yirankuma.yrdatabase.nukkit.listener.PlayerEventListener;
+import com.yirankuma.yrdatabase.nukkit.session.NukkitSessionBridge;
 
 import java.io.File;
 import java.util.Map;
@@ -24,8 +26,10 @@ public class YRDatabaseNukkit extends PluginBase {
 
     private static YRDatabaseNukkit instance;
     private static DatabaseManager databaseManager;
+    private static NukkitSessionBridge sessionBridge;
     
     private Config pluginConfig;
+    private boolean proxyMode = false;
 
     @Override
     public void onLoad() {
@@ -39,8 +43,14 @@ public class YRDatabaseNukkit extends PluginBase {
         saveDefaultConfig();
         pluginConfig = getConfig();
         
+        // Check mode
+        proxyMode = "proxy".equalsIgnoreCase(pluginConfig.getString("mode", "standalone"));
+        
         // Initialize database
         initDatabase();
+        
+        // Initialize session bridge (after database is initialized)
+        initSessionBridge();
         
         // Register events
         getServer().getPluginManager().registerEvents(new PlayerEventListener(this), this);
@@ -48,12 +58,18 @@ public class YRDatabaseNukkit extends PluginBase {
         // Register commands
         getServer().getCommandMap().register("yrdatabase", new YRDBCommand(this));
         
-        getLogger().info("YRDatabase enabled!");
+        getLogger().info("YRDatabase enabled! (mode: " + (proxyMode ? "proxy" : "standalone") + ")");
     }
 
     @Override
     public void onDisable() {
         getLogger().info("YRDatabase is disabling...");
+        
+        // Stop session bridge first
+        if (sessionBridge != null) {
+            sessionBridge.stop();
+            sessionBridge = null;
+        }
         
         // Save all online players data
         for (Player player : getServer().getOnlinePlayers().values()) {
@@ -93,6 +109,21 @@ public class YRDatabaseNukkit extends PluginBase {
             });
         } catch (Exception e) {
             getLogger().error("Failed to initialize database", e);
+        }
+    }
+
+    private void initSessionBridge() {
+        if (databaseManager == null) {
+            getLogger().warning("Cannot initialize session bridge: DatabaseManager is null");
+            return;
+        }
+        
+        try {
+            sessionBridge = new NukkitSessionBridge(this, databaseManager, proxyMode);
+            sessionBridge.start();
+            getLogger().info("Session bridge initialized");
+        } catch (Exception e) {
+            getLogger().error("Failed to initialize session bridge", e);
         }
     }
 
@@ -225,6 +256,29 @@ public class YRDatabaseNukkit extends PluginBase {
      */
     public static DatabaseManager getDatabaseManager() {
         return databaseManager;
+    }
+
+    /**
+     * Get the session bridge.
+     * Use this to access session-related functionality.
+     */
+    public static NukkitSessionBridge getSessionBridge() {
+        return sessionBridge;
+    }
+
+    /**
+     * Get the session manager.
+     * Use this to register session event listeners.
+     */
+    public static SessionManager getSessionManager() {
+        return sessionBridge != null ? sessionBridge.getSessionManager() : null;
+    }
+
+    /**
+     * Check if running in proxy mode.
+     */
+    public boolean isProxyMode() {
+        return proxyMode;
     }
 
     /**

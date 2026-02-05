@@ -168,7 +168,7 @@ public class YRDBCommand extends Command {
 
     private void showInfo(CommandSender sender) {
         sender.sendMessage("§e[YRDatabase] §f插件信息:");
-        sender.sendMessage("§7  版本: §f1.0.0-SNAPSHOT");
+        sender.sendMessage("§7  版本: §f2.0.0");
         sender.sendMessage("§7  作者: §fYiranKuma");
         sender.sendMessage("§7  平台: §fNukkitMOT");
         sender.sendMessage("");

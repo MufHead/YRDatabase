@@ -1,0 +1,58 @@
+# YRDatabase Configuration for Allay
+# Database mode: standalone (single server) or proxy (WaterdogPE cluster)
+mode: standalone
+
+# Cache configuration (Redis)
+cache:
+  enabled: true
+  type: redis
+  host: localhost
+  port: 6379
+  password: ""
+  database: 0
+  timeout: 5000
+  pool:
+    maxTotal: 20
+    maxIdle: 10
+    minIdle: 2
+
+# Persistence configuration (MySQL/SQLite)
+persist:
+  enabled: true
+  type: sqlite  # sqlite or mysql
+  
+  mysql:
+    host: localhost
+    port: 3306
+    database: yrdatabase
+    username: root
+    password: ""
+    timezone: Asia/Shanghai
+    pool:
+      maxSize: 10
+      minIdle: 2
+      connectionTimeout: 30000
+      idleTimeout: 600000
+      maxLifetime: 1800000
+  
+  sqlite:
+    file: data/yrdatabase.db
+
+# Caching behavior
+caching:
+  defaultTTL: 3600
+  playerDataTTL: 7200
+  autoRefresh: true
+  refreshThreshold: 300
+
+# Session management
+session:
+  timeout: 300000
+  heartbeatInterval: 10000
+  messageExpiry: 30000
+
+# Advanced settings
+advanced:
+  asyncExecutorSize: 4
+  enableMetrics: false
+  debugMode: false

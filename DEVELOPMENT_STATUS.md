@@ -194,8 +194,8 @@ gradlew.bat build
 ```
 
 生成的文件：
-- `yrdatabase-allay/build/libs/yrdatabase-allay-1.0.0-SNAPSHOT.jar` - Allay 插件
-- `yrdatabase-waterdog/build/libs/yrdatabase-waterdog-1.0.0-SNAPSHOT.jar` - WaterdogPE 插件
+- `yrdatabase-allay/build/libs/yrdatabase-allay-2.0.0.jar` - Allay 插件
+- `yrdatabase-waterdog/build/libs/yrdatabase-waterdog-2.0.0.jar` - WaterdogPE 插件
 
 ---
 

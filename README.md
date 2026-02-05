@@ -98,7 +98,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'com.github.MufHead.YRDatabase:yrdatabase-api:master-SNAPSHOT'
+    compileOnly 'com.github.MufHead.YRDatabase:yrdatabase-api:2.0.0'
 }
 ```
 
@@ -110,7 +110,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-api:master-SNAPSHOT")
+    compileOnly("com.github.MufHead.YRDatabase:yrdatabase-api:2.0.0")
 }
 ```
 
@@ -128,7 +128,7 @@ dependencies {
     <dependency>
         <groupId>com.github.MufHead.YRDatabase</groupId>
         <artifactId>yrdatabase-api</artifactId>
-        <version>master-SNAPSHOT</version>
+        <version>2.0.0</version>
         <scope>provided</scope>
     </dependency>
 </dependencies>
@@ -314,9 +314,9 @@ export JAVA_HOME=/path/to/jdk-21
 ### 输出文件
 
 ```
-yrdatabase-allay/build/libs/yrdatabase-allay-1.0.0-SNAPSHOT.jar
-yrdatabase-nukkit/build/libs/yrdatabase-nukkit-1.0.0-SNAPSHOT.jar
-yrdatabase-waterdog/build/libs/yrdatabase-waterdog-1.0.0-SNAPSHOT.jar
+yrdatabase-allay/build/libs/yrdatabase-allay-2.0.0.jar
+yrdatabase-nukkit/build/libs/yrdatabase-nukkit-2.0.0.jar
+yrdatabase-waterdog/build/libs/yrdatabase-waterdog-2.0.0.jar
 ```
 
 ---

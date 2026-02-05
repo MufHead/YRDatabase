@@ -186,7 +186,7 @@ public class YRDBCommand extends Command {
 
     private void showInfo(CommandSender sender) {
         sender.sendMessage("§e[YRDatabase] §fPlugin Information:");
-        sender.sendMessage("§7  Version: §f1.0.0-SNAPSHOT");
+        sender.sendMessage("§7  Version: §f2.0.0");
         sender.sendMessage("§7  Author: §fYiranKuma");
         sender.sendMessage("§7  Platform: §fAllay");
         sender.sendMessage("");

@@ -1,7 +1,7 @@
 @echo off
 echo Checking JAR contents...
 echo.
-"C:\Program Files\Java\jdk-21\bin\jar.exe" -tf "E:\ServerPLUGINS\Allay-YRDatabase\yrdatabase-allay\build\libs\yrdatabase-allay-1.0.0-SNAPSHOT.jar" > jar_contents.txt
+"C:\Program Files\Java\jdk-21\bin\jar.exe" -tf "E:\ServerPLUGINS\Bedrock-YRDatabase\yrdatabase-allay\build\libs\yrdatabase-allay-2.0.0.jar" > jar_contents.txt
 echo Total files in JAR:
 find /c /v "" jar_contents.txt
 echo.
