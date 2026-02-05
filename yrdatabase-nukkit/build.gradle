@@ -1,0 +1,60 @@
+plugins {
+    id 'java-library'
+    id 'com.gradleup.shadow'
+}
+
+group = 'com.yirankuma.yrdatabase'
+version = '1.0.0-SNAPSHOT'
+description = 'YRDatabase NukkitMOT - NukkitMOT platform plugin'
+
+repositories {
+    mavenCentral()
+    maven { url 'https://repo.lanink.cn/repository/maven-public/' }
+    maven { url 'https://repo.opencollab.dev/maven-releases/' }
+    maven { url 'https://repo.opencollab.dev/maven-snapshots/' }
+}
+
+dependencies {
+    // NukkitMOT API
+    compileOnly 'cn.nukkit:Nukkit:MOT-SNAPSHOT'
+    
+    // YRDatabase Core
+    implementation project(':yrdatabase-core')
+}
+
+processResources {
+    filesMatching('plugin.yml') {
+        expand(
+            'version': project.version,
+            'description': project.description
+        )
+    }
+}
+
+shadowJar {
+    archiveClassifier = ''
+    
+    // Relocate dependencies to avoid conflicts with other plugins
+    relocate 'io.lettuce', 'com.yirankuma.yrdatabase.libs.lettuce'
+    relocate 'com.zaxxer.hikari', 'com.yirankuma.yrdatabase.libs.hikari'
+    relocate 'com.mysql', 'com.yirankuma.yrdatabase.libs.mysql'
+    relocate 'org.xerial', 'com.yirankuma.yrdatabase.libs.xerial'
+    relocate 'org.apache.commons.pool2', 'com.yirankuma.yrdatabase.libs.pool2'
+    relocate 'com.google.gson', 'com.yirankuma.yrdatabase.libs.gson'
+    relocate 'io.netty', 'com.yirankuma.yrdatabase.libs.netty'
+    relocate 'reactor', 'com.yirankuma.yrdatabase.libs.reactor'
+    relocate 'org.reactivestreams', 'com.yirankuma.yrdatabase.libs.reactivestreams'
+}
+
+jar {
+    dependsOn shadowJar
+    enabled = false
+}
+
+// Disable maven-publish for this module (users download JAR directly)
+tasks.withType(PublishToMavenRepository).configureEach {
+    enabled = false
+}
+tasks.withType(PublishToMavenLocal).configureEach {
+    enabled = false
+}

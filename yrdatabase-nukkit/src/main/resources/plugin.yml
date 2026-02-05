@@ -1,0 +1,35 @@
+name: YRDatabase
+main: com.yirankuma.yrdatabase.nukkit.YRDatabaseNukkit
+version: "${version}"
+api: ["1.0.0"]
+author: YiranKuma
+description: "${description}"
+website: https://github.com/MufHead/YRDatabase
+load: POSTWORLD
+
+commands:
+  yrdb:
+    description: YRDatabase management command
+    usage: "/yrdb <help|status|reload|info|test|stats>"
+    aliases: ["yrdatabase"]
+    permission: yrdatabase.admin
+
+permissions:
+  yrdatabase.admin:
+    description: Full access to YRDatabase admin commands
+    default: op
+  yrdatabase.admin.status:
+    description: View database status
+    default: op
+  yrdatabase.admin.reload:
+    description: Reload configuration
+    default: op
+  yrdatabase.admin.info:
+    description: View plugin info
+    default: op
+  yrdatabase.admin.test:
+    description: Run database tests
+    default: op
+  yrdatabase.admin.stats:
+    description: View performance statistics
+    default: op

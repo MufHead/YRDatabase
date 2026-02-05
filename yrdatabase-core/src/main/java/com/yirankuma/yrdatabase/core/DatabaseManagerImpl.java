@@ -48,9 +48,10 @@ public class DatabaseManagerImpl implements DatabaseManager {
     /**
      * Initialize all database connections.
      *
-     * @return Completion future
+     * @return Completion future with success status
      */
-    public CompletableFuture<Void> initialize() {
+    @Override
+    public CompletableFuture<Boolean> initialize() {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
         // Initialize cache provider (Redis)
@@ -90,9 +91,24 @@ public class DatabaseManagerImpl implements DatabaseManager {
         }
 
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                .thenRun(() -> log.info("YRDatabase initialized. Cache: {}, Persist: {}",
-                        redisProvider != null && redisProvider.isConnected() ? "connected" : "disabled",
-                        persistProvider != null && persistProvider.isConnected() ? "connected" : "disabled"));
+                .thenApply(v -> {
+                    log.info("YRDatabase initialized. Cache: {}, Persist: {}",
+                            redisProvider != null && redisProvider.isConnected() ? "connected" : "disabled",
+                            persistProvider != null && persistProvider.isConnected() ? "connected" : "disabled");
+                    return isConnected();
+                });
+    }
+
+    /**
+     * Flush all pending writes to persistence layer.
+     *
+     * @return Future completing when flush is done
+     */
+    @Override
+    public CompletableFuture<Void> flush() {
+        // Currently we don't have a write-behind cache,
+        // so flush is a no-op. Could be extended for batch writes.
+        return CompletableFuture.completedFuture(null);
     }
 
     // ==================== Simple Map API ====================

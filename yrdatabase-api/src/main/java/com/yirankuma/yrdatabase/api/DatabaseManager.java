@@ -113,6 +113,20 @@ public interface DatabaseManager extends AutoCloseable {
     // ==================== Status ====================
 
     /**
+     * Initialize the database connections.
+     *
+     * @return Future completing with success status
+     */
+    CompletableFuture<Boolean> initialize();
+
+    /**
+     * Flush all pending writes to persistence layer.
+     *
+     * @return Future completing when flush is done
+     */
+    CompletableFuture<Void> flush();
+
+    /**
      * Check if any storage backend is connected.
      *
      * @return Connection status

@@ -1,0 +1,58 @@
+# YRDatabase Configuration for NukkitMOT
+
+# Mode: standalone (single server) or proxy (with WaterdogPE)
+mode: standalone
+
+# Cache layer (Redis) - Optional but recommended for proxy mode
+cache:
+  enabled: false
+  host: localhost
+  port: 6379
+  password: ""
+  database: 0
+  timeout: 5000
+  pool:
+    maxTotal: 20
+    maxIdle: 10
+    minIdle: 2
+
+# Persistence layer (MySQL or SQLite)
+persist:
+  enabled: true
+  # Type: mysql or sqlite
+  type: sqlite
+  
+  mysql:
+    host: localhost
+    port: 3306
+    database: yrdatabase
+    username: root
+    password: ""
+    timezone: UTC
+    pool:
+      maxSize: 10
+      minIdle: 2
+      connectionTimeout: 30000
+      idleTimeout: 600000
+      maxLifetime: 1800000
+  
+  sqlite:
+    # Relative to plugin data folder, or absolute path
+    file: data.db
+
+# Caching settings
+caching:
+  defaultTTL: 3600      # seconds
+  playerDataTTL: 7200   # seconds
+  autoRefresh: true
+
+# Session management
+session:
+  timeout: 300000         # 5 minutes in ms
+  heartbeatInterval: 10000  # 10 seconds in ms
+
+# Advanced settings
+advanced:
+  asyncExecutorSize: 4
+  enableMetrics: false
+  debugMode: false
