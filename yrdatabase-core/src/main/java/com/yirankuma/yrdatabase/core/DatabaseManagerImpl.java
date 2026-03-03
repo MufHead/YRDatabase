@@ -17,8 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 /**
  * Core implementation of DatabaseManager.
@@ -37,6 +36,9 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
     private final Map<Class<?>, Repository<?>> repositories = new ConcurrentHashMap<>();
     private final Set<String> ensuredTables = ConcurrentHashMap.newKeySet();
+
+    //预留两个线程池处理持久化延迟
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
     public DatabaseManagerImpl(DatabaseConfig config) {
         this.config = config;
@@ -200,10 +202,9 @@ public class DatabaseManagerImpl implements DatabaseManager {
                     return redisProvider.setEx(cacheKey, json, Duration.ofSeconds(ttl))
                             .thenCompose(cacheOk -> {
                                 if (cacheOk) {
-                                    // 延迟持久化（异步，不阻塞）
-                                    CompletableFuture.runAsync(() -> {
+                                    scheduler.schedule(() -> {          // ← 直接用调度器延迟
                                         saveToPersist(table, key, dataWithKey);
-                                    });
+                                    }, ttl, TimeUnit.SECONDS);
                                 }
                                 return CompletableFuture.completedFuture(cacheOk);
                             });
