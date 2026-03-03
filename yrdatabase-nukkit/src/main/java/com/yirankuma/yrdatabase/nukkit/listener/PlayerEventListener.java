@@ -118,7 +118,7 @@ public class PlayerEventListener implements Listener {
         }
 
         Map<String, Object> sessionData = new HashMap<>();
-        sessionData.put("uuid", uuid.toString());
+        sessionData.put("id", uuid.toString());
         sessionData.put("name", playerName);
         sessionData.put("lastSeen", System.currentTimeMillis());
         sessionData.put("lastServer", plugin.getServer().getName());
@@ -150,9 +150,8 @@ public class PlayerEventListener implements Listener {
     private void createNewSession(UUID uuid, String playerName) {
         DatabaseManager db = YRDatabaseNukkit.getDatabaseManager();
         if (db == null) return;
-
         Map<String, Object> sessionData = new HashMap<>();
-        sessionData.put("uuid", uuid.toString());
+        sessionData.put("id", uuid.toString());
         sessionData.put("name", playerName);
         sessionData.put("firstJoin", System.currentTimeMillis());
         sessionData.put("lastSeen", System.currentTimeMillis());
@@ -169,15 +168,14 @@ public class PlayerEventListener implements Listener {
         DatabaseManager db = YRDatabaseNukkit.getDatabaseManager();
         if (db == null) return;
 
-        String eventKey = uuid.toString() + "_" + System.currentTimeMillis();
         Map<String, Object> eventData = new HashMap<>();
-        eventData.put("uuid", uuid.toString());
+        eventData.put("id", uuid.toString());
         eventData.put("name", playerName);
         eventData.put("event", eventType);
         eventData.put("timestamp", System.currentTimeMillis());
         eventData.put("server", plugin.getServer().getName());
 
-        db.set("player_events", eventKey, eventData)
+        db.set("player_events", uuid.toString(), eventData)
             .exceptionally(e -> {
                 plugin.getLogger().error("Failed to record event " + eventType + " for " + playerName, e);
                 return null;
