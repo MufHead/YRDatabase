@@ -7,7 +7,10 @@ import cn.nukkit.event.Listener;
 import cn.nukkit.event.player.PlayerJoinEvent;
 import cn.nukkit.event.player.PlayerQuitEvent;
 import com.yirankuma.yrdatabase.api.DatabaseManager;
+import com.yirankuma.yrdatabase.api.event.SessionReason;
 import com.yirankuma.yrdatabase.nukkit.YRDatabaseNukkit;
+import com.yirankuma.yrdatabase.nukkit.event.NukkitPlayerDataInitEvent;
+import com.yirankuma.yrdatabase.nukkit.event.NukkitPlayerDataSaveEvent;
 import com.yirankuma.yrdatabase.nukkit.session.NukkitSessionBridge;
 
 import java.util.HashMap;
@@ -50,25 +53,28 @@ public class PlayerEventListener implements Listener {
             return;
         }
 
-        // Trigger local join event via session bridge
-        // In proxy mode, this will wait for Redis confirmation
-        // In standalone mode, this will immediately trigger the event
+        SessionReason reason = plugin.isProxyMode() ? SessionReason.LOCAL_JOIN : SessionReason.LOCAL_JOIN;
+
+        NukkitPlayerDataInitEvent initEvent = new NukkitPlayerDataInitEvent(
+                player, uuid.toString(), playerName, reason
+        );
+        plugin.getServer().getPluginManager().callEvent(initEvent);
+
+        if (initEvent.shouldLoadData()) {
+            plugin.getLogger().debug("Player " + playerName + " data should be loaded (reason: " + reason + ")");
+        }
+
         NukkitSessionBridge sessionBridge = YRDatabaseNukkit.getSessionBridge();
         if (sessionBridge != null) {
             sessionBridge.triggerLocalJoin(uuid.toString(), playerName);
         }
 
-        // Load player session data asynchronously
         db.get("player_sessions", uuid.toString())
             .thenAccept(result -> {
                 if (result.isPresent()) {
                     Map<String, Object> data = result.get();
                     plugin.getLogger().debug("Loaded session data for " + playerName);
-                    
-                    // Apply session data (e.g., restore previous state)
-                    // This runs on async thread, be careful with Nukkit API calls
                 } else {
-                    // First time player, create new session
                     plugin.getLogger().debug("Creating new session for " + playerName);
                     createNewSession(uuid, playerName);
                 }
@@ -78,7 +84,6 @@ public class PlayerEventListener implements Listener {
                 return null;
             });
 
-        // Record join event
         recordPlayerEvent(uuid, playerName, "JOIN");
     }
 
@@ -90,9 +95,17 @@ public class PlayerEventListener implements Listener {
 
         plugin.getLogger().debug("Player " + playerName + " quit, notifying session bridge...");
 
-        // Trigger local quit event via session bridge
-        // In proxy mode, this will wait for Redis confirmation before persisting
-        // In standalone mode, this will immediately trigger the event and persist
+        SessionReason reason = plugin.isProxyMode() ? SessionReason.LOCAL_QUIT : SessionReason.LOCAL_QUIT;
+
+        NukkitPlayerDataSaveEvent saveEvent = new NukkitPlayerDataSaveEvent(
+                player, uuid.toString(), playerName, reason
+        );
+        plugin.getServer().getPluginManager().callEvent(saveEvent);
+
+        if (saveEvent.shouldPersist() && !saveEvent.isCancelled()) {
+            plugin.getLogger().debug("Player " + playerName + " data should be persisted (reason: " + reason + ")");
+        }
+
         NukkitSessionBridge sessionBridge = YRDatabaseNukkit.getSessionBridge();
         if (sessionBridge != null) {
             sessionBridge.triggerLocalQuit(uuid.toString(), playerName);
@@ -104,19 +117,15 @@ public class PlayerEventListener implements Listener {
             return;
         }
 
-        // Save player session data to cache
-        // Actual persistence will be handled by session events
         Map<String, Object> sessionData = new HashMap<>();
         sessionData.put("uuid", uuid.toString());
         sessionData.put("name", playerName);
         sessionData.put("lastSeen", System.currentTimeMillis());
         sessionData.put("lastServer", plugin.getServer().getName());
         
-        // Get player stats
         sessionData.put("health", (double) player.getHealth());
         sessionData.put("gamemode", player.getGamemode());
         
-        // Position
         sessionData.put("x", player.getX());
         sessionData.put("y", player.getY());
         sessionData.put("z", player.getZ());
@@ -135,7 +144,6 @@ public class PlayerEventListener implements Listener {
                 return null;
             });
 
-        // Record quit event
         recordPlayerEvent(uuid, playerName, "QUIT");
     }
 
