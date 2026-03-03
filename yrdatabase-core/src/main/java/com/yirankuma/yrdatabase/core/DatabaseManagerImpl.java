@@ -286,30 +286,67 @@ public class DatabaseManagerImpl implements DatabaseManager {
                 .exceptionally(e -> false);
     }
 
-    @Override
-    public CompletableFuture<Boolean> ensureTable(String table, Map<String, String> schema) {
-        if (ensuredTables.contains(table)) {
+//    @Override
+//    public CompletableFuture<Boolean> ensureTable(String table, Map<String, String> schema) {
+//        if (ensuredTables.contains(table)) {
+//            return CompletableFuture.completedFuture(true);
+//        }
+//
+//        if (persistProvider == null || !persistProvider.isConnected()) {
+//            return CompletableFuture.completedFuture(false);
+//        }
+//
+//        return persistProvider.tableExists(table).thenCompose(exists -> {
+//            if (exists) {
+//                ensuredTables.add(table);
+//                return CompletableFuture.completedFuture(true);
+//            }
+//
+//            return persistProvider.createTable(table, schema).thenApply(created -> {
+//                if (created) {
+//                    ensuredTables.add(table);
+//                }
+//                return created;
+//            });
+//        });
+//    }
+// 在 dbManager.ensureTable 里
+public CompletableFuture<Boolean> ensureTable(String table, Map<String, String> schema) {
+    log.info("[DEBUG] ensureTable 开始: table=" + table);
+
+    if (this.ensuredTables.contains(table)) {
+        log.info("[DEBUG] 表 " + table + " 已在缓存中");
+        return CompletableFuture.completedFuture(true);
+    }
+
+    if (this.persistProvider == null || !this.persistProvider.isConnected()) {
+        log.info("[DEBUG] 数据库未连接! persistProvider=" + persistProvider);
+        return CompletableFuture.completedFuture(false);
+    }
+
+    return this.persistProvider.tableExists(table).thenCompose(exists -> {
+        log.info("[DEBUG] 表 " + table + " 存在性检查: " + exists);
+
+        if (exists) {
+            this.ensuredTables.add(table);
             return CompletableFuture.completedFuture(true);
         }
 
-        if (persistProvider == null || !persistProvider.isConnected()) {
-            return CompletableFuture.completedFuture(false);
-        }
-
-        return persistProvider.tableExists(table).thenCompose(exists -> {
-            if (exists) {
-                ensuredTables.add(table);
-                return CompletableFuture.completedFuture(true);
+        log.info("[DEBUG] 准备创建表: " + table);
+        return this.persistProvider.createTable(table, schema).thenApply(created -> {
+            log.info("[DEBUG] createTable 返回: " + created);
+            if (created) {
+                this.ensuredTables.add(table);
+            } else {
+                log.info("[DEBUG] 创建表 " + table + " 失败!");
             }
-
-            return persistProvider.createTable(table, schema).thenApply(created -> {
-                if (created) {
-                    ensuredTables.add(table);
-                }
-                return created;
-            });
+            return created;
+        }).exceptionally(ex -> {
+            log.info("[DEBUG] createTable 异常: " + ex.getMessage());
+            return false;
         });
-    }
+    });
+}
 
     // ==================== Repository API ====================
 
