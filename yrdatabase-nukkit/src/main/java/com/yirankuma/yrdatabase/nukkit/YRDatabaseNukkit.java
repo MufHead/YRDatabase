@@ -103,6 +103,7 @@ public class YRDatabaseNukkit extends PluginBase {
                     getLogger().error("Failed to initialize database: " + error.getMessage());
                 } else if (success) {
                     getLogger().info("Database initialized successfully!");
+                    createInternalTables();
                 } else {
                     getLogger().warning("Database initialization returned false");
                 }
@@ -288,5 +289,36 @@ public class YRDatabaseNukkit extends PluginBase {
         reloadConfig();
         pluginConfig = getConfig();
         getLogger().info("Configuration reloaded");
+    }
+
+
+    private void createInternalTables() {
+        Map<String, String> sessionSchema = new java.util.HashMap<>();
+        sessionSchema.put("id", "VARCHAR(48) PRIMARY KEY");
+        sessionSchema.put("name", "TEXT");
+        sessionSchema.put("firstJoin", "BIGINT");
+        sessionSchema.put("lastSeen", "BIGINT");
+        sessionSchema.put("lastServer", "TEXT");
+        sessionSchema.put("health", "REAL");
+        sessionSchema.put("gamemode", "INTEGER");
+        sessionSchema.put("x", "REAL");
+        sessionSchema.put("y", "REAL");
+        sessionSchema.put("z", "REAL");
+        sessionSchema.put("world", "TEXT");
+
+        Map<String, String> eventsSchema = new java.util.HashMap<>();
+        eventsSchema.put("id", "VARCHAR(48) PRIMARY KEY");
+        eventsSchema.put("name", "TEXT");
+        eventsSchema.put("event", "TEXT");
+        eventsSchema.put("timestamp", "BIGINT");
+        eventsSchema.put("server", "TEXT");
+
+        databaseManager.ensureTable("player_sessions", sessionSchema)
+                .thenCompose(v -> databaseManager.ensureTable("player_events", eventsSchema))
+                .thenAccept(created -> getLogger().info("Internal tables created"))
+                .exceptionally(e -> {
+                    getLogger().error("Failed to create internal tables", e);
+                    return null;
+                });
     }
 }

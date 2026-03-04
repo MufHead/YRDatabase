@@ -17,8 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 /**
  * Core implementation of DatabaseManager.
@@ -37,6 +36,9 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
     private final Map<Class<?>, Repository<?>> repositories = new ConcurrentHashMap<>();
     private final Set<String> ensuredTables = ConcurrentHashMap.newKeySet();
+
+    //预留两个线程池处理持久化延迟
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
     public DatabaseManagerImpl(DatabaseConfig config) {
         this.config = config;
@@ -196,10 +198,25 @@ public class DatabaseManagerImpl implements DatabaseManager {
             case CACHE_FIRST:
             default:
                 if (redisProvider != null && redisProvider.isConnected()) {
-                    return redisProvider.setEx(cacheKey, json, Duration.ofSeconds(ttl));
+                    // 先保存到缓存
+                    return redisProvider.setEx(cacheKey, json, Duration.ofSeconds(ttl))
+                            .thenCompose(cacheOk -> {
+                                if (cacheOk) {
+                                    scheduler.schedule(() -> {          // ← 直接用调度器延迟
+                                        saveToPersist(table, key, dataWithKey);
+                                    }, ttl, TimeUnit.SECONDS);
+                                }
+                                return CompletableFuture.completedFuture(cacheOk);
+                            });
                 }
-                // Fallback to persist if no cache
                 return saveToPersist(table, key, dataWithKey);
+//            case CACHE_FIRST:
+//            default:
+//                if (redisProvider != null && redisProvider.isConnected()) {
+//                    return redisProvider.setEx(cacheKey, json, Duration.ofSeconds(ttl));
+//                }
+//                // Fallback to persist if no cache
+//                return saveToPersist(table, key, dataWithKey);
         }
     }
 
@@ -310,6 +327,7 @@ public class DatabaseManagerImpl implements DatabaseManager {
             });
         });
     }
+// 在 dbManager.ensureTable 里
 
     // ==================== Repository API ====================
 
