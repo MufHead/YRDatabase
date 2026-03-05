@@ -6,6 +6,7 @@ import cn.nukkit.event.EventPriority;
 import cn.nukkit.event.Listener;
 import cn.nukkit.event.player.PlayerJoinEvent;
 import cn.nukkit.event.player.PlayerQuitEvent;
+import com.yirankuma.yrdatabase.api.CacheStrategy;
 import com.yirankuma.yrdatabase.api.DatabaseManager;
 import com.yirankuma.yrdatabase.api.event.SessionReason;
 import com.yirankuma.yrdatabase.nukkit.YRDatabaseNukkit;
@@ -69,7 +70,7 @@ public class PlayerEventListener implements Listener {
             sessionBridge.triggerLocalJoin(uuid.toString(), playerName);
         }
 
-        db.get("player_sessions", uuid.toString())
+        db.get("player_sessions", uuid.toString(),30)
             .thenAccept(result -> {
                 if (result.isPresent()) {
                     Map<String, Object> data = result.get();
@@ -131,7 +132,7 @@ public class PlayerEventListener implements Listener {
         sessionData.put("z", player.getZ());
         sessionData.put("world", player.getLevel().getName());
 
-        db.set("player_sessions", uuid.toString(), sessionData)
+        db.set("player_sessions", uuid.toString(), sessionData, CacheStrategy.PERSIST_ONLY)
             .thenAccept(success -> {
                 if (success) {
                     plugin.getLogger().debug("Cached session data for " + playerName);
@@ -156,7 +157,7 @@ public class PlayerEventListener implements Listener {
         sessionData.put("firstJoin", System.currentTimeMillis());
         sessionData.put("lastSeen", System.currentTimeMillis());
 
-        db.set("player_sessions", uuid.toString(), sessionData)
+        db.set("player_sessions", uuid.toString(), sessionData,CacheStrategy.PERSIST_ONLY)
             .thenAccept(success -> {
                 if (success) {
                     plugin.getLogger().debug("Created new session for " + playerName);
@@ -175,7 +176,7 @@ public class PlayerEventListener implements Listener {
         eventData.put("timestamp", System.currentTimeMillis());
         eventData.put("server", plugin.getServer().getName());
 
-        db.set("player_events", uuid.toString(), eventData)
+        db.set("player_events", uuid.toString(), eventData,CacheStrategy.PERSIST_ONLY)
             .exceptionally(e -> {
                 plugin.getLogger().error("Failed to record event " + eventType + " for " + playerName, e);
                 return null;

@@ -27,6 +27,16 @@ public interface DatabaseManager extends AutoCloseable {
     CompletableFuture<Optional<Map<String, Object>>> get(String table, String key);
 
     /**
+     * Smart get: tries cache first, then persistence layer.
+     *
+     * @param table Table name
+     * @param key   Primary key
+     * @param TTLSeconds   Custom TTL time(Seconds)
+     * @return Data map wrapped in Optional
+     */
+    CompletableFuture<Optional<Map<String, Object>>> get(String table, String key, int TTLSeconds);
+
+    /**
      * Smart set: writes to cache with optional delayed persistence.
      *
      * @param table Table name
@@ -47,6 +57,17 @@ public interface DatabaseManager extends AutoCloseable {
      */
     CompletableFuture<Boolean> set(String table, String key, Map<String, Object> data, CacheStrategy strategy);
 
+    /**
+     * Smart set with cache strategy.
+     *
+     * @param table    Table name
+     * @param key      Primary key
+     * @param data     Data to store
+     * @param strategy Cache strategy
+     * @param TTLSeconds Custom TTL time(Seconds)
+     * @return Success status
+     */
+    CompletableFuture<Boolean> set(String table, String key, Map<String, Object> data, CacheStrategy strategy, int TTLSeconds);
     /**
      * Persist data from cache to persistence layer and clear cache.
      *

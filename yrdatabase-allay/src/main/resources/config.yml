@@ -40,8 +40,7 @@ persist:
 
 # Caching behavior
 caching:
-  defaultTTL: 3600
-  playerDataTTL: 7200
+  defaultTTL: 3600  # seconds
   autoRefresh: true
   refreshThreshold: 300
 

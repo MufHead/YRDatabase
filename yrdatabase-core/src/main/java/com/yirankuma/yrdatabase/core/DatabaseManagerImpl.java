@@ -117,6 +117,11 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
     @Override
     public CompletableFuture<Optional<Map<String, Object>>> get(String table, String key) {
+        return get(table,key,0);
+    }
+
+    @Override
+    public CompletableFuture<Optional<Map<String, Object>>> get(String table, String key, int TTLSeconds) {
         String cacheKey = buildCacheKey(table, key);
 
         // Try cache first
@@ -135,6 +140,7 @@ public class DatabaseManagerImpl implements DatabaseManager {
                         // Write back to cache
                         String json = gson.toJson(persisted.get());
                         long ttl = config.getCaching().getDefaultTTL();
+                        if(TTLSeconds > 0)ttl = TTLSeconds;
                         redisProvider.setEx(cacheKey, json, Duration.ofSeconds(ttl));
                     }
                     return CompletableFuture.completedFuture(persisted);
@@ -167,10 +173,16 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
     @Override
     public CompletableFuture<Boolean> set(String table, String key, Map<String, Object> data, CacheStrategy strategy) {
+        return set(table, key, data, strategy,0);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> set(String table, String key, Map<String, Object> data, CacheStrategy strategy, int TTLSeconds) {
         String cacheKey = buildCacheKey(table, key);
         String json = gson.toJson(data);
         long ttl = config.getCaching().getDefaultTTL();
-
+        if(TTLSeconds > 0)ttl = TTLSeconds;
+        final long finalTTL = ttl;
         // Ensure data has the key
         Map<String, Object> dataWithKey = new HashMap<>(data);
         dataWithKey.put("id", key);
@@ -189,7 +201,7 @@ public class DatabaseManagerImpl implements DatabaseManager {
                 CompletableFuture<Boolean> persistFuture = saveToPersist(table, key, dataWithKey);
                 if (redisProvider != null && redisProvider.isConnected()) {
                     return persistFuture.thenCompose(persistOk -> 
-                        redisProvider.setEx(cacheKey, json, Duration.ofSeconds(ttl))
+                        redisProvider.setEx(cacheKey, json, Duration.ofSeconds(finalTTL))
                             .thenApply(cacheOk -> persistOk && cacheOk)
                     );
                 }
@@ -199,12 +211,12 @@ public class DatabaseManagerImpl implements DatabaseManager {
             default:
                 if (redisProvider != null && redisProvider.isConnected()) {
                     // 先保存到缓存
-                    return redisProvider.setEx(cacheKey, json, Duration.ofSeconds(ttl))
+                    return redisProvider.setEx(cacheKey, json, Duration.ofSeconds(finalTTL))
                             .thenCompose(cacheOk -> {
                                 if (cacheOk) {
                                     scheduler.schedule(() -> {          // ← 直接用调度器延迟
                                         saveToPersist(table, key, dataWithKey);
-                                    }, ttl, TimeUnit.SECONDS);
+                                    }, finalTTL, TimeUnit.SECONDS);
                                 }
                                 return CompletableFuture.completedFuture(cacheOk);
                             });
