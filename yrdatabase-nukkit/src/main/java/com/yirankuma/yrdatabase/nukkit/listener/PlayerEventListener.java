@@ -132,7 +132,7 @@ public class PlayerEventListener implements Listener {
         sessionData.put("z", player.getZ());
         sessionData.put("world", player.getLevel().getName());
 
-        db.set("player_sessions", uuid.toString(), sessionData, CacheStrategy.CACHE_FIRST,30)
+        db.set("player_sessions", uuid.toString(), sessionData, CacheStrategy.PERSIST_ONLY)
             .thenAccept(success -> {
                 if (success) {
                     plugin.getLogger().debug("Cached session data for " + playerName);
@@ -157,7 +157,7 @@ public class PlayerEventListener implements Listener {
         sessionData.put("firstJoin", System.currentTimeMillis());
         sessionData.put("lastSeen", System.currentTimeMillis());
 
-        db.set("player_sessions", uuid.toString(), sessionData,CacheStrategy.CACHE_FIRST,30)
+        db.set("player_sessions", uuid.toString(), sessionData,CacheStrategy.PERSIST_ONLY)
             .thenAccept(success -> {
                 if (success) {
                     plugin.getLogger().debug("Created new session for " + playerName);
@@ -176,7 +176,7 @@ public class PlayerEventListener implements Listener {
         eventData.put("timestamp", System.currentTimeMillis());
         eventData.put("server", plugin.getServer().getName());
 
-        db.set("player_events", uuid.toString(), eventData,CacheStrategy.CACHE_FIRST,30)
+        db.set("player_events", uuid.toString(), eventData,CacheStrategy.PERSIST_ONLY)
             .exceptionally(e -> {
                 plugin.getLogger().error("Failed to record event " + eventType + " for " + playerName, e);
                 return null;

@@ -173,7 +173,7 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
     @Override
     public CompletableFuture<Boolean> set(String table, String key, Map<String, Object> data, CacheStrategy strategy) {
-        return set(table, key, data, CacheStrategy.CACHE_FIRST,0);
+        return set(table, key, data, strategy,0);
     }
 
     @Override
