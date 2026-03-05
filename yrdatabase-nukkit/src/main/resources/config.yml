@@ -43,7 +43,6 @@ persist:
 # Caching settings
 caching:
   defaultTTL: 3600      # seconds
-  playerDataTTL: 7200   # seconds
   autoRefresh: true
 
 # Session management

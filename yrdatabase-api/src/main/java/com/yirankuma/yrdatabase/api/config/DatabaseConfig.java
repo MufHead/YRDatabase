@@ -95,7 +95,6 @@ public class DatabaseConfig {
     @Data
     public static class CachingConfig {
         private long defaultTTL = 3600;
-        private long playerDataTTL = 7200;
         private boolean autoRefresh = true;
         private long refreshThreshold = 300;
     }

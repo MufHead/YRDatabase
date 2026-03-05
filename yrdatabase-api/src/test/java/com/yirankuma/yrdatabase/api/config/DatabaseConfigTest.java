@@ -152,7 +152,6 @@ class DatabaseConfigTest {
             DatabaseConfig config = new DatabaseConfig();
             
             assertEquals(3600, config.getCaching().getDefaultTTL());
-            assertEquals(7200, config.getCaching().getPlayerDataTTL());
         }
 
         @Test

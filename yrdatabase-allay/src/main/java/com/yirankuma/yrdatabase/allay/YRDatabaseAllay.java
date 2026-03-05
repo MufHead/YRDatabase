@@ -171,7 +171,6 @@ public class YRDatabaseAllay extends Plugin {
         // Caching
         DatabaseConfig.CachingConfig cachingConfig = dbConfig.getCaching();
         cachingConfig.setDefaultTTL(config.getLong("caching.defaultTTL", 3600));
-        cachingConfig.setPlayerDataTTL(config.getLong("caching.playerDataTTL", 7200));
         cachingConfig.setAutoRefresh(config.getBoolean("caching.autoRefresh", true));
         cachingConfig.setRefreshThreshold(config.getLong("caching.refreshThreshold", 300));
 

@@ -198,7 +198,6 @@ public class YRDatabaseNukkit extends PluginBase {
         Map<String, Object> cachingSection = pluginConfig.getSection("caching").getAllMap();
         if (!cachingSection.isEmpty()) {
             config.getCaching().setDefaultTTL(getInt(cachingSection, "defaultTTL", 3600));
-            config.getCaching().setPlayerDataTTL(getInt(cachingSection, "playerDataTTL", 7200));
             config.getCaching().setAutoRefresh(getBoolean(cachingSection, "autoRefresh", true));
         }
         
