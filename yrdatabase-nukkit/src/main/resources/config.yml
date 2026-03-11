@@ -45,6 +45,8 @@ caching:
   defaultTTL: 3600      # seconds
   playerDataTTL: 7200   # seconds
   autoRefresh: true
+  autoSyncEnabled: true
+  autoSyncIntervalSeconds: 300  # Sync every 5 minutes; set 0 or negative to disable
 
 # Session management
 session:

@@ -44,6 +44,9 @@ caching:
   playerDataTTL: 7200
   autoRefresh: true
   refreshThreshold: 300
+  # Auto-sync: periodically persist all CACHE_FIRST data to DB (no need for sub-plugins to implement their own flush scheduler)
+  autoSyncEnabled: true
+  autoSyncIntervalSeconds: 300  # Sync every 5 minutes; set 0 or negative to disable
 
 # Session management
 session:

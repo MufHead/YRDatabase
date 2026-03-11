@@ -98,6 +98,10 @@ public class DatabaseConfig {
         private long playerDataTTL = 7200;
         private boolean autoRefresh = true;
         private long refreshThreshold = 300;
+        /** 定期将所有 CACHE_FIRST 缓存数据同步到持久层，无需子插件自行实现 flush 调度 */
+        private boolean autoSyncEnabled = true;
+        /** 同步间隔（秒），0 或负数禁用 */
+        private int autoSyncIntervalSeconds = 300;
     }
 
     @Data

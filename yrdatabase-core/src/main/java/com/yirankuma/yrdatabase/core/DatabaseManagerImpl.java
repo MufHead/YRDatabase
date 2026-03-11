@@ -41,8 +41,10 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
     // pending 持久化集合 key，所有子服共享同一个 Redis sorted set
     private static final String PENDING_KEY = "yrdatabase:pending";
-    // 分布式锁前缀
+    // 分布式锁前缀（per-key 锁，用于 sweep）
     private static final String LOCK_PREFIX = "yrdatabase:lock:";
+    // auto-sync 全局锁，保证同一时刻只有一台子服执行 sync
+    private static final String SYNC_LOCK_KEY = "yrdatabase:sync_lock";
     // 扫描间隔（秒）
     private static final long SWEEP_INTERVAL_SECONDS = 30;
     // 提前量：TTL 剩余不足此值时触发持久化（必须 > SWEEP_INTERVAL_SECONDS）
@@ -128,6 +130,57 @@ public class DatabaseManagerImpl implements DatabaseManager {
             }
         }, SWEEP_INTERVAL_SECONDS, SWEEP_INTERVAL_SECONDS, TimeUnit.SECONDS);
         log.info("Pending sweep started (interval={}s, buffer={}s)", SWEEP_INTERVAL_SECONDS, SWEEP_BUFFER_SECONDS);
+
+        // auto-sync：定期将所有 pending 数据同步到持久层，子插件无需自行管理 flush 调度
+        if (config.getCaching().isAutoSyncEnabled()) {
+            int syncInterval = config.getCaching().getAutoSyncIntervalSeconds();
+            if (syncInterval > 0) {
+                scheduler.scheduleAtFixedRate(() -> {
+                    try {
+                        syncAllPending(syncInterval);
+                    } catch (Exception e) {
+                        log.error("Auto sync error: {}", e.getMessage());
+                    }
+                }, syncInterval, syncInterval, TimeUnit.SECONDS);
+                log.info("Auto sync started (interval={}s)", syncInterval);
+            }
+        }
+    }
+
+    /**
+     * 将 pending 集合中所有 key 同步到持久层（不删除 Redis 缓存）。
+     * 使用 Redis 全局锁保证同一时刻只有一台子服执行，避免多服重复写库。
+     * 锁 TTL = syncInterval，崩溃时自动释放。
+     */
+    private void syncAllPending(int syncInterval) {
+        if (redisProvider == null || !redisProvider.isConnected()) return;
+        if (persistProvider == null || !persistProvider.isConnected()) return;
+
+        // 全局 sync 锁：TTL = syncInterval，确保每个周期内只有一台服执行
+        redisProvider.setNxEx(SYNC_LOCK_KEY, "1", Duration.ofSeconds(syncInterval))
+                .thenCompose(acquired -> {
+                    if (!acquired) {
+                        log.debug("Auto sync skipped: another server is handling it");
+                        return CompletableFuture.completedFuture(null);
+                    }
+                    return redisProvider.zrangeByScore(PENDING_KEY, 0, Double.MAX_VALUE)
+                            .thenAccept(members -> {
+                                if (members.isEmpty()) return;
+                                log.debug("Auto sync: processing {} pending keys", members.size());
+                                for (String cacheKey : members) {
+                                    String[] parts = parseCacheKey(cacheKey);
+                                    if (parts == null) continue;
+                                    persistOnly(parts[0], parts[1]).exceptionally(e -> {
+                                        log.warn("Auto sync failed for {}: {}", cacheKey, e.getMessage());
+                                        return false;
+                                    });
+                                }
+                            });
+                })
+                .exceptionally(e -> {
+                    log.error("Auto sync scan failed: {}", e.getMessage());
+                    return null;
+                });
     }
 
     /**
