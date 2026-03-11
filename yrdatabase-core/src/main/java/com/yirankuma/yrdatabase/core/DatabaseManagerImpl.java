@@ -51,8 +51,6 @@ public class DatabaseManagerImpl implements DatabaseManager {
     private static final String PENDING_KEY = "yrdatabase:pending";
     // 分布式锁前缀（per-key 锁，用于 sweep）
     private static final String LOCK_PREFIX = "yrdatabase:lock:";
-    // auto-sync 全局锁，保证同一时刻只有一台子服执行 sync
-    private static final String SYNC_LOCK_KEY = "yrdatabase:sync_lock";
     // 扫描间隔（秒）
     private static final long SWEEP_INTERVAL_SECONDS = 30;
     // 提前量：TTL 剩余不足此值时触发持久化（必须 > SWEEP_INTERVAL_SECONDS）
@@ -123,8 +121,10 @@ public class DatabaseManagerImpl implements DatabaseManager {
     }
 
     /**
-     * 启动定期扫描任务，处理即将过期的 pending 持久化条目。
-     * 仅在 Redis 和持久化层都可用时有意义。
+     * 启动定期扫描任务。
+     * 每 SWEEP_INTERVAL_SECONDS 秒扫一次 pending 集合：
+     *   - autoRefresh 扫描：TTL ≤ refreshThreshold 且玩家在线 → 续期
+     *   - autoSync 扫描：TTL ≤ autoSyncIntervalSeconds 且玩家离线 → 持久化
      */
     private void startPendingSweep() {
         if (redisProvider == null || persistProvider == null) {
@@ -137,137 +137,108 @@ public class DatabaseManagerImpl implements DatabaseManager {
                 log.error("Pending sweep error: {}", e.getMessage());
             }
         }, SWEEP_INTERVAL_SECONDS, SWEEP_INTERVAL_SECONDS, TimeUnit.SECONDS);
-        log.info("Pending sweep started (interval={}s, buffer={}s)", SWEEP_INTERVAL_SECONDS, SWEEP_BUFFER_SECONDS);
 
-        // auto-sync：定期将所有 pending 数据同步到持久层，子插件无需自行管理 flush 调度
-        if (config.getCaching().isAutoSyncEnabled()) {
-            int syncInterval = config.getCaching().getAutoSyncIntervalSeconds();
-            if (syncInterval > 0) {
-                scheduler.scheduleAtFixedRate(() -> {
-                    try {
-                        syncAllPending(syncInterval);
-                    } catch (Exception e) {
-                        log.error("Auto sync error: {}", e.getMessage());
-                    }
-                }, syncInterval, syncInterval, TimeUnit.SECONDS);
-                log.info("Auto sync started (interval={}s)", syncInterval);
-            }
-        }
+        long refreshThreshold = config.getCaching().isAutoRefresh()
+                ? config.getCaching().getRefreshThreshold() : -1;
+        long syncThreshold = config.getCaching().isAutoSyncEnabled()
+                ? config.getCaching().getAutoSyncIntervalSeconds() : -1;
+        log.info("Pending sweep started (interval={}s, refreshThreshold={}s, syncThreshold={}s)",
+                SWEEP_INTERVAL_SECONDS,
+                refreshThreshold >= 0 ? String.valueOf(refreshThreshold) : "disabled",
+                syncThreshold >= 0 ? String.valueOf(syncThreshold) : "disabled");
     }
 
     /**
-     * 将 pending 集合中所有 key 同步到持久层（不删除 Redis 缓存）。
-     * 使用 Redis 全局锁保证同一时刻只有一台子服执行，避免多服重复写库。
-     * 锁 TTL = syncInterval，崩溃时自动释放。
-     */
-    private void syncAllPending(int syncInterval) {
-        if (redisProvider == null || !redisProvider.isConnected()) return;
-        if (persistProvider == null || !persistProvider.isConnected()) return;
-
-        // 全局 sync 锁：TTL = syncInterval，确保每个周期内只有一台服执行
-        redisProvider.setNxEx(SYNC_LOCK_KEY, "1", Duration.ofSeconds(syncInterval))
-                .thenCompose(acquired -> {
-                    if (!acquired) {
-                        log.info("Auto sync skipped: another server holds the lock");
-                        return CompletableFuture.completedFuture(null);
-                    }
-                    log.info("Auto sync lock acquired, scanning pending set...");
-                    return redisProvider.zrangeByScore(PENDING_KEY, 0, Double.MAX_VALUE)
-                            .thenAccept(members -> {
-                                if (members.isEmpty()) {
-                                    log.info("Auto sync: pending set is empty, nothing to persist");
-                                    return;
-                                }
-                                log.info("Auto sync: persisting {} pending keys", members.size());
-                                for (String cacheKey : members) {
-                                    String[] parts = parseCacheKey(cacheKey);
-                                    if (parts == null) {
-                                        log.warn("Auto sync: could not parse cache key: {}", cacheKey);
-                                        continue;
-                                    }
-                                    log.info("Auto sync: persisting {}/{}", parts[0], parts[1]);
-                                    persistOnly(parts[0], parts[1]).thenAccept(ok -> {
-                                        if (ok) {
-                                            log.info("Auto sync: persisted {}/{} OK", parts[0], parts[1]);
-                                        } else {
-                                            log.warn("Auto sync: persist returned false for {}/{}", parts[0], parts[1]);
-                                        }
-                                    }).exceptionally(e -> {
-                                        log.warn("Auto sync failed for {}: {}", cacheKey, e.getMessage());
-                                        return null;
-                                    });
-                                }
-                            });
-                })
-                .exceptionally(e -> {
-                    log.error("Auto sync scan failed: {}", e.getMessage());
-                    return null;
-                });
-    }
-
-    /**
-     * 扫描 pending 集合，对即将过期（或 flushAll 时全部）的条目加锁并持久化。
+     * 扫描 pending 集合，根据配置阈值触发续期或持久化。
      *
-     * @param all true 时处理全部条目（关服 flush 用），false 时只处理快到期的
+     * <p>普通扫描 (all=false):
+     * <ul>
+     *   <li>autoRefresh 扫描：找到 TTL ≤ refreshThreshold 的 key，若对应玩家在线则续期。</li>
+     *   <li>autoSync 扫描：找到 TTL ≤ autoSyncIntervalSeconds 的 key，若对应玩家离线则持久化。</li>
+     * </ul>
+     * 关服扫描 (all=true)：不区分在线状态，全部持久化。
      */
     private void sweepPending(boolean all) {
         if (redisProvider == null || !redisProvider.isConnected()) return;
         if (persistProvider == null || !persistProvider.isConnected()) return;
 
-        double maxScore = all
-                ? Double.MAX_VALUE
-                : (System.currentTimeMillis() / 1000.0) + SWEEP_BUFFER_SECONDS;
-
-        boolean autoRefresh = !all && config.getCaching().isAutoRefresh();
-
-        redisProvider.zrangeByScore(PENDING_KEY, 0, maxScore).thenAccept(members -> {
-            for (String cacheKey : members) {
-                if (autoRefresh) {
-                    refreshOrPersistPendingKey(cacheKey);
-                } else {
+        if (all) {
+            redisProvider.zrangeByScore(PENDING_KEY, 0, Double.MAX_VALUE).thenAccept(members -> {
+                for (String cacheKey : members) {
                     processPendingKey(cacheKey);
                 }
-            }
-        }).exceptionally(e -> {
-            log.error("Failed to scan pending set: {}", e.getMessage());
-            return null;
-        });
-    }
-
-    /**
-     * 当 autoRefresh 开启时，sweep 发现快到期的 key 优先延长 TTL（保活），
-     * 而非立即持久化。若 Redis key 已经过期，则回退到正常持久化。
-     * MySQL 写入由 autoSync 或 logout 时的 persistAndClear 负责。
-     */
-    private void refreshOrPersistPendingKey(String cacheKey) {
-        // If a platform-layer checker is registered and says the player is offline,
-        // fall through to normal persist instead of extending TTL.
-        if (onlineChecker != null && !onlineChecker.test(cacheKey)) {
-            log.debug("autoRefresh sweep: player offline for {}, falling back to persist", cacheKey);
-            processPendingKey(cacheKey);
+            }).exceptionally(e -> {
+                log.error("Failed to scan pending set (flush): {}", e.getMessage());
+                return null;
+            });
             return;
         }
 
+        long nowSeconds = System.currentTimeMillis() / 1000L;
+
+        // === Refresh scan: 玩家在线 + TTL ≤ refreshThreshold → 续期 ===
+        if (config.getCaching().isAutoRefresh()) {
+            long refreshThreshold = config.getCaching().getRefreshThreshold();
+            if (refreshThreshold > 0) {
+                double maxScore = nowSeconds + refreshThreshold;
+                redisProvider.zrangeByScore(PENDING_KEY, 0, maxScore).thenAccept(members -> {
+                    for (String cacheKey : members) {
+                        if (onlineChecker == null || onlineChecker.test(cacheKey)) {
+                            sweepRefreshKey(cacheKey);
+                        }
+                        // 玩家离线的情况由下面 persist scan 处理
+                    }
+                }).exceptionally(e -> {
+                    log.error("Refresh sweep scan failed: {}", e.getMessage());
+                    return null;
+                });
+            }
+        }
+
+        // === Persist scan: 玩家离线 + TTL ≤ syncThreshold → 持久化 ===
+        long syncThreshold = config.getCaching().isAutoSyncEnabled()
+                ? config.getCaching().getAutoSyncIntervalSeconds()
+                : SWEEP_BUFFER_SECONDS; // 未启用 autoSync 时用固定缓冲作为保底
+        if (syncThreshold > 0) {
+            double maxScore = nowSeconds + syncThreshold;
+            redisProvider.zrangeByScore(PENDING_KEY, 0, maxScore).thenAccept(members -> {
+                for (String cacheKey : members) {
+                    // 在线玩家已由 refresh scan 处理，此处跳过
+                    if (onlineChecker != null && onlineChecker.test(cacheKey)) {
+                        continue;
+                    }
+                    processPendingKey(cacheKey);
+                }
+            }).exceptionally(e -> {
+                log.error("Persist sweep scan failed: {}", e.getMessage());
+                return null;
+            });
+        }
+    }
+
+    /**
+     * 为仍然存活的 Redis key 续期，并更新 pending 集合里的过期分值。
+     * 若 Redis key 已经过期，则回退到正常持久化流程。
+     */
+    private void sweepRefreshKey(String cacheKey) {
         long ttl = config.getCaching().getDefaultTTL();
         redisProvider.expire(cacheKey, Duration.ofSeconds(ttl))
                 .thenAccept(refreshed -> {
                     if (refreshed) {
-                        // Key still alive in Redis — update pending score to new expiry
-                        double newExpireAt = System.currentTimeMillis() / 1000.0 + ttl;
-                        redisProvider.zadd(PENDING_KEY, newExpireAt, cacheKey)
+                        double newScore = System.currentTimeMillis() / 1000.0 + ttl;
+                        redisProvider.zadd(PENDING_KEY, newScore, cacheKey)
                                 .exceptionally(e -> {
-                                    log.warn("autoRefresh sweep: failed to update pending score for {}: {}", cacheKey, e.getMessage());
+                                    log.warn("sweep refresh: failed to update score for {}: {}", cacheKey, e.getMessage());
                                     return false;
                                 });
-                        log.debug("autoRefresh sweep: extended TTL for {}", cacheKey);
+                        log.debug("sweep refresh: extended TTL for {}", cacheKey);
                     } else {
-                        // Key already expired from Redis — fall back to normal persist path
-                        log.debug("autoRefresh sweep: key {} already expired, persisting", cacheKey);
+                        log.debug("sweep refresh: key {} already expired, persisting", cacheKey);
                         processPendingKey(cacheKey);
                     }
                 })
                 .exceptionally(e -> {
-                    log.warn("autoRefresh sweep: expire failed for {}: {}", cacheKey, e.getMessage());
+                    log.warn("sweep refresh: expire failed for {}: {}", cacheKey, e.getMessage());
                     processPendingKey(cacheKey);
                     return null;
                 });
