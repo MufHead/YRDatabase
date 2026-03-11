@@ -348,6 +348,26 @@ public class DatabaseManagerImpl implements DatabaseManager {
                     // Cache hit
                     @SuppressWarnings("unchecked")
                     Map<String, Object> data = gson.fromJson(cached.get(), Map.class);
+                    // Auto-refresh TTL if enabled and remaining TTL is below threshold
+                    if (config.getCaching().isAutoRefresh()) {
+                        long threshold = config.getCaching().getRefreshThreshold();
+                        long defaultTtl = config.getCaching().getDefaultTTL();
+                        redisProvider.ttl(cacheKey).thenAccept(remaining -> {
+                            if (remaining >= 0 && remaining < threshold) {
+                                redisProvider.expire(cacheKey, Duration.ofSeconds(defaultTtl));
+                                // Update pending score so sweep uses the new expiry time
+                                double newExpireAt = System.currentTimeMillis() / 1000.0 + defaultTtl;
+                                redisProvider.zadd(PENDING_KEY, newExpireAt, cacheKey)
+                                        .exceptionally(e -> {
+                                            log.warn("autoRefresh: failed to update pending score for {}: {}", cacheKey, e.getMessage());
+                                            return false;
+                                        });
+                            }
+                        }).exceptionally(e -> {
+                            log.warn("autoRefresh: failed to get TTL for {}: {}", cacheKey, e.getMessage());
+                            return null;
+                        });
+                    }
                     return CompletableFuture.completedFuture(Optional.ofNullable(data));
                 }
 

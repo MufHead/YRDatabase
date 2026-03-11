@@ -63,6 +63,8 @@ public class MySQLProvider implements PersistProvider {
                             configMaxLifetime, safeMaxLifetime);
                 }
                 hikariConfig.setMaxLifetime(safeMaxLifetime);
+                // Ping idle connections every 60s to prevent MySQL from closing them
+                hikariConfig.setKeepaliveTime(60000);
                 hikariConfig.setPoolName("YRDatabase-MySQL");
 
                 // Performance optimizations
