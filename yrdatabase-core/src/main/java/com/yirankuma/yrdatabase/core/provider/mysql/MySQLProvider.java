@@ -561,9 +561,8 @@ public class MySQLProvider implements PersistProvider {
             sql.append(columns.stream().map(c -> "?").collect(Collectors.joining(", ")));
             sql.append(")");
 
+            conn.setAutoCommit(false);
             try (PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
-                conn.setAutoCommit(false);
-
                 for (Map<String, Object> row : rows) {
                     for (int i = 0; i < columns.size(); i++) {
                         stmt.setObject(i + 1, row.get(columns.get(i)));
@@ -573,8 +572,12 @@ public class MySQLProvider implements PersistProvider {
 
                 stmt.executeBatch();
                 conn.commit();
-                conn.setAutoCommit(true);
                 return true;
+            } catch (Exception e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
             }
         });
     }

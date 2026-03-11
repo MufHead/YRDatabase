@@ -108,4 +108,35 @@ public interface CacheProvider extends StorageProvider {
      * @return True if set, false if key already exists
      */
     CompletableFuture<Boolean> setNxEx(String key, String value, Duration ttl);
+
+    // ==================== Sorted Set Operations ====================
+
+    /**
+     * Add member to sorted set with score.
+     *
+     * @param key    Sorted set key
+     * @param score  Score (typically a timestamp)
+     * @param member Member value
+     * @return True if member was newly added
+     */
+    CompletableFuture<Boolean> zadd(String key, double score, String member);
+
+    /**
+     * Remove members from sorted set.
+     *
+     * @param key     Sorted set key
+     * @param members Members to remove
+     * @return Number of members removed
+     */
+    CompletableFuture<Long> zrem(String key, String... members);
+
+    /**
+     * Get members with score between min and max (inclusive).
+     *
+     * @param key Sorted set key
+     * @param min Minimum score
+     * @param max Maximum score
+     * @return List of matching members
+     */
+    CompletableFuture<java.util.List<String>> zrangeByScore(String key, double min, double max);
 }

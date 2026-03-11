@@ -49,12 +49,23 @@ public interface DatabaseManager extends AutoCloseable {
 
     /**
      * Persist data from cache to persistence layer and clear cache.
+     * Use on player quit to free Redis memory.
      *
      * @param table Table name
      * @param key   Primary key
      * @return Success status
      */
     CompletableFuture<Boolean> persistAndClear(String table, String key);
+
+    /**
+     * Persist data from cache to persistence layer without clearing cache.
+     * Use for periodic auto-flush while the player is still online.
+     *
+     * @param table Table name
+     * @param key   Primary key
+     * @return Success status
+     */
+    CompletableFuture<Boolean> persistOnly(String table, String key);
 
     /**
      * Delete data from both cache and persistence layer.

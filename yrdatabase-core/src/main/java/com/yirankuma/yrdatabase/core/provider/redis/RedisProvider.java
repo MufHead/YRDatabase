@@ -273,6 +273,23 @@ public class RedisProvider implements CacheProvider {
                 .thenApply("OK"::equals);
     }
 
+    // ==================== Sorted Set Operations ====================
+
+    @Override
+    public CompletableFuture<Boolean> zadd(String key, double score, String member) {
+        return executeAsync(cmd -> cmd.zadd(key, score, member)).thenApply(count -> count > 0);
+    }
+
+    @Override
+    public CompletableFuture<Long> zrem(String key, String... members) {
+        return executeAsync(cmd -> cmd.zrem(key, members));
+    }
+
+    @Override
+    public CompletableFuture<List<String>> zrangeByScore(String key, double min, double max) {
+        return executeAsync(cmd -> cmd.zrangebyscore(key, io.lettuce.core.Range.create(min, max)));
+    }
+
     // ==================== Status ====================
 
     @Override

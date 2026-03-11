@@ -37,8 +37,18 @@ public class DatabaseManagerImpl implements DatabaseManager {
     private final Map<Class<?>, Repository<?>> repositories = new ConcurrentHashMap<>();
     private final Set<String> ensuredTables = ConcurrentHashMap.newKeySet();
 
-    //预留两个线程池处理持久化延迟
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+
+    // pending 持久化集合 key，所有子服共享同一个 Redis sorted set
+    private static final String PENDING_KEY = "yrdatabase:pending";
+    // 分布式锁前缀
+    private static final String LOCK_PREFIX = "yrdatabase:lock:";
+    // 扫描间隔（秒）
+    private static final long SWEEP_INTERVAL_SECONDS = 30;
+    // 提前量：TTL 剩余不足此值时触发持久化（必须 > SWEEP_INTERVAL_SECONDS）
+    private static final long SWEEP_BUFFER_SECONDS = 60;
+    // 分布式锁自动过期时间，防止持有锁的服务器崩溃后锁永不释放
+    private static final long LOCK_TTL_SECONDS = 30;
 
     public DatabaseManagerImpl(DatabaseConfig config) {
         this.config = config;
@@ -97,20 +107,165 @@ public class DatabaseManagerImpl implements DatabaseManager {
                     log.info("YRDatabase initialized. Cache: {}, Persist: {}",
                             redisProvider != null && redisProvider.isConnected() ? "connected" : "disabled",
                             persistProvider != null && persistProvider.isConnected() ? "connected" : "disabled");
+                    startPendingSweep();
                     return isConnected();
                 });
     }
 
     /**
-     * Flush all pending writes to persistence layer.
+     * 启动定期扫描任务，处理即将过期的 pending 持久化条目。
+     * 仅在 Redis 和持久化层都可用时有意义。
+     */
+    private void startPendingSweep() {
+        if (redisProvider == null || persistProvider == null) {
+            return;
+        }
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                sweepPending(false);
+            } catch (Exception e) {
+                log.error("Pending sweep error: {}", e.getMessage());
+            }
+        }, SWEEP_INTERVAL_SECONDS, SWEEP_INTERVAL_SECONDS, TimeUnit.SECONDS);
+        log.info("Pending sweep started (interval={}s, buffer={}s)", SWEEP_INTERVAL_SECONDS, SWEEP_BUFFER_SECONDS);
+    }
+
+    /**
+     * 扫描 pending 集合，对即将过期（或 flushAll 时全部）的条目加锁并持久化。
      *
-     * @return Future completing when flush is done
+     * @param all true 时处理全部条目（关服 flush 用），false 时只处理快到期的
+     */
+    private void sweepPending(boolean all) {
+        if (redisProvider == null || !redisProvider.isConnected()) return;
+        if (persistProvider == null || !persistProvider.isConnected()) return;
+
+        double maxScore = all
+                ? Double.MAX_VALUE
+                : (System.currentTimeMillis() / 1000.0) + SWEEP_BUFFER_SECONDS;
+
+        redisProvider.zrangeByScore(PENDING_KEY, 0, maxScore).thenAccept(members -> {
+            for (String cacheKey : members) {
+                processPendingKey(cacheKey);
+            }
+        }).exceptionally(e -> {
+            log.error("Failed to scan pending set: {}", e.getMessage());
+            return null;
+        });
+    }
+
+    /**
+     * 对单个 pending 条目加分布式锁后持久化。
+     */
+    private void processPendingKey(String cacheKey) {
+        String lockKey = LOCK_PREFIX + cacheKey;
+
+        // 抢分布式锁，TTL 到期自动释放，防止崩溃后死锁
+        redisProvider.setNxEx(lockKey, "1", Duration.ofSeconds(LOCK_TTL_SECONDS))
+                .thenCompose(acquired -> {
+                    if (!acquired) {
+                        // 其他子服已在处理
+                        return CompletableFuture.completedFuture(false);
+                    }
+                    // 解析 cacheKey → table + key
+                    String[] parts = parseCacheKey(cacheKey);
+                    if (parts == null) {
+                        redisProvider.zrem(PENDING_KEY, cacheKey);
+                        redisProvider.delete(lockKey);
+                        return CompletableFuture.completedFuture(false);
+                    }
+                    String table = parts[0];
+                    String key = parts[1];
+
+                    return redisProvider.get(cacheKey).thenCompose(cached -> {
+                        CompletableFuture<Boolean> persistFuture;
+                        if (cached.isPresent()) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> latest = gson.fromJson(cached.get(), Map.class);
+                            latest.put("id", key);
+                            persistFuture = saveToPersist(table, key, latest);
+                        } else {
+                            // Redis 数据已过期，条目本身也可清除
+                            log.debug("Pending key {} expired from Redis, removing from pending", cacheKey);
+                            persistFuture = CompletableFuture.completedFuture(true);
+                        }
+                        return persistFuture.thenCompose(ok -> {
+                            if (ok) {
+                                redisProvider.zrem(PENDING_KEY, cacheKey);
+                            }
+                            // 无论成功与否都释放锁
+                            return redisProvider.delete(lockKey).thenApply(d -> ok);
+                        });
+                    });
+                })
+                .exceptionally(e -> {
+                    log.error("Error processing pending key {}: {}", cacheKey, e.getMessage());
+                    redisProvider.delete(lockKey);
+                    return false;
+                });
+    }
+
+    /**
+     * 解析 cacheKey（"yrdatabase:{table}:{key}"）为 [table, key]。
+     */
+    private String[] parseCacheKey(String cacheKey) {
+        String prefix = "yrdatabase:";
+        if (!cacheKey.startsWith(prefix)) return null;
+        String rest = cacheKey.substring(prefix.length());
+        int idx = rest.indexOf(':');
+        if (idx < 1) return null;
+        return new String[]{rest.substring(0, idx), rest.substring(idx + 1)};
+    }
+
+    /**
+     * Flush all pending writes to persistence layer.
+     * 扫描 pending 集合里的全部条目并持久化，用于关服时确保数据落库。
      */
     @Override
     public CompletableFuture<Void> flush() {
-        // Currently we don't have a write-behind cache,
-        // so flush is a no-op. Could be extended for batch writes.
-        return CompletableFuture.completedFuture(null);
+        if (redisProvider == null || !redisProvider.isConnected()
+                || persistProvider == null || !persistProvider.isConnected()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return redisProvider.zrangeByScore(PENDING_KEY, 0, Double.MAX_VALUE).thenCompose(members -> {
+            if (members.isEmpty()) return CompletableFuture.completedFuture(null);
+            log.info("Flushing {} pending persist entries...", members.size());
+            List<CompletableFuture<?>> futures = new ArrayList<>();
+            for (String cacheKey : members) {
+                futures.add(processPendingKeySync(cacheKey));
+            }
+            return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        }).exceptionally(e -> {
+            log.error("Flush failed: {}", e.getMessage());
+            return null;
+        });
+    }
+
+    /**
+     * flush 专用：同步等待每个 key 处理完成（不用分布式锁，关服时本服优先）。
+     */
+    private CompletableFuture<Void> processPendingKeySync(String cacheKey) {
+        String[] parts = parseCacheKey(cacheKey);
+        if (parts == null) {
+            return redisProvider.zrem(PENDING_KEY, cacheKey).thenApply(r -> null);
+        }
+        String table = parts[0];
+        String key = parts[1];
+
+        return redisProvider.get(cacheKey).thenCompose(cached -> {
+            if (cached.isPresent()) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> latest = gson.fromJson(cached.get(), Map.class);
+                latest.put("id", key);
+                return saveToPersist(table, key, latest).thenCompose(ok -> {
+                    if (ok) return redisProvider.zrem(PENDING_KEY, cacheKey).thenApply(r -> (Void) null);
+                    return CompletableFuture.completedFuture((Void) null);
+                });
+            }
+            return redisProvider.zrem(PENDING_KEY, cacheKey).thenApply(r -> (Void) null);
+        }).exceptionally(e -> {
+            log.error("Flush key {} failed: {}", cacheKey, e.getMessage());
+            return (Void) null;
+        });
     }
 
     // ==================== Simple Map API ====================
@@ -198,25 +353,22 @@ public class DatabaseManagerImpl implements DatabaseManager {
             case CACHE_FIRST:
             default:
                 if (redisProvider != null && redisProvider.isConnected()) {
-                    // 先保存到缓存
+                    // 写入 Redis，同时登记到 pending 集合（score = 过期时间戳，单位秒）
+                    double expireAt = System.currentTimeMillis() / 1000.0 + ttl;
                     return redisProvider.setEx(cacheKey, json, Duration.ofSeconds(ttl))
                             .thenCompose(cacheOk -> {
                                 if (cacheOk) {
-                                    scheduler.schedule(() -> {          // ← 直接用调度器延迟
-                                        saveToPersist(table, key, dataWithKey);
-                                    }, ttl, TimeUnit.SECONDS);
+                                    // 登记到 pending，供本服或其他子服的 sweep 处理
+                                    redisProvider.zadd(PENDING_KEY, expireAt, cacheKey)
+                                            .exceptionally(e -> {
+                                                log.error("Failed to register pending for {}/{}: {}", table, key, e.getMessage());
+                                                return false;
+                                            });
                                 }
                                 return CompletableFuture.completedFuture(cacheOk);
                             });
                 }
                 return saveToPersist(table, key, dataWithKey);
-//            case CACHE_FIRST:
-//            default:
-//                if (redisProvider != null && redisProvider.isConnected()) {
-//                    return redisProvider.setEx(cacheKey, json, Duration.ofSeconds(ttl));
-//                }
-//                // Fallback to persist if no cache
-//                return saveToPersist(table, key, dataWithKey);
         }
     }
 
@@ -225,7 +377,18 @@ public class DatabaseManagerImpl implements DatabaseManager {
             return CompletableFuture.completedFuture(false);
         }
 
-        return persistProvider.upsert(table, data, "id");
+        return persistProvider.upsert(table, data, "id").thenApply(ok -> {
+            // 持久化成功后从 pending 集合移除（ZREM 对不存在的 member 是 no-op）
+            if (ok && redisProvider != null && redisProvider.isConnected()) {
+                String cacheKey = buildCacheKey(table, key);
+                redisProvider.zrem(PENDING_KEY, cacheKey)
+                        .exceptionally(e -> {
+                            log.warn("Failed to remove {} from pending: {}", cacheKey, e.getMessage());
+                            return 0L;
+                        });
+            }
+            return ok;
+        });
     }
 
     @Override
@@ -255,12 +418,36 @@ public class DatabaseManagerImpl implements DatabaseManager {
     }
 
     @Override
+    public CompletableFuture<Boolean> persistOnly(String table, String key) {
+        String cacheKey = buildCacheKey(table, key);
+
+        if (redisProvider == null || !redisProvider.isConnected()) {
+            return CompletableFuture.completedFuture(true);
+        }
+
+        return redisProvider.get(cacheKey).thenCompose(cached -> {
+            if (cached.isEmpty()) {
+                return CompletableFuture.completedFuture(true);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = gson.fromJson(cached.get(), Map.class);
+            data.put("id", key);
+
+            // 只持久化，不删除 Redis 缓存，保持缓存对在线玩家可用
+            return saveToPersist(table, key, data);
+        });
+    }
+
+    @Override
     public CompletableFuture<Boolean> delete(String table, String key) {
         String cacheKey = buildCacheKey(table, key);
         List<CompletableFuture<Boolean>> futures = new ArrayList<>();
 
         if (redisProvider != null && redisProvider.isConnected()) {
             futures.add(redisProvider.delete(cacheKey));
+            // 删除时同步清除 pending 登记，避免 sweep 再去持久化已删除的数据
+            redisProvider.zrem(PENDING_KEY, cacheKey);
         }
 
         if (persistProvider != null && persistProvider.isConnected()) {
@@ -407,6 +594,17 @@ public class DatabaseManagerImpl implements DatabaseManager {
     @Override
     public void close() {
         log.info("Shutting down YRDatabase...");
+
+        // 停止 sweep 调度，不再接新任务
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
 
         if (redisProvider != null) {
             try {
