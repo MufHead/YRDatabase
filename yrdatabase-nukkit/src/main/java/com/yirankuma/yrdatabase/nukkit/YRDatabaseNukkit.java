@@ -200,6 +200,8 @@ public class YRDatabaseNukkit extends PluginBase {
             config.getCaching().setDefaultTTL(getInt(cachingSection, "defaultTTL", 3600));
             config.getCaching().setPlayerDataTTL(getInt(cachingSection, "playerDataTTL", 7200));
             config.getCaching().setAutoRefresh(getBoolean(cachingSection, "autoRefresh", true));
+            config.getCaching().setAutoSyncEnabled(getBoolean(cachingSection, "autoSyncEnabled", true));
+            config.getCaching().setAutoSyncIntervalSeconds(getInt(cachingSection, "autoSyncIntervalSeconds", 300));
         }
         
         // Session config

@@ -160,19 +160,33 @@ public class DatabaseManagerImpl implements DatabaseManager {
         redisProvider.setNxEx(SYNC_LOCK_KEY, "1", Duration.ofSeconds(syncInterval))
                 .thenCompose(acquired -> {
                     if (!acquired) {
-                        log.debug("Auto sync skipped: another server is handling it");
+                        log.info("Auto sync skipped: another server holds the lock");
                         return CompletableFuture.completedFuture(null);
                     }
+                    log.info("Auto sync lock acquired, scanning pending set...");
                     return redisProvider.zrangeByScore(PENDING_KEY, 0, Double.MAX_VALUE)
                             .thenAccept(members -> {
-                                if (members.isEmpty()) return;
-                                log.debug("Auto sync: processing {} pending keys", members.size());
+                                if (members.isEmpty()) {
+                                    log.info("Auto sync: pending set is empty, nothing to persist");
+                                    return;
+                                }
+                                log.info("Auto sync: persisting {} pending keys", members.size());
                                 for (String cacheKey : members) {
                                     String[] parts = parseCacheKey(cacheKey);
-                                    if (parts == null) continue;
-                                    persistOnly(parts[0], parts[1]).exceptionally(e -> {
+                                    if (parts == null) {
+                                        log.warn("Auto sync: could not parse cache key: {}", cacheKey);
+                                        continue;
+                                    }
+                                    log.info("Auto sync: persisting {}/{}", parts[0], parts[1]);
+                                    persistOnly(parts[0], parts[1]).thenAccept(ok -> {
+                                        if (ok) {
+                                            log.info("Auto sync: persisted {}/{} OK", parts[0], parts[1]);
+                                        } else {
+                                            log.warn("Auto sync: persist returned false for {}/{}", parts[0], parts[1]);
+                                        }
+                                    }).exceptionally(e -> {
                                         log.warn("Auto sync failed for {}: {}", cacheKey, e.getMessage());
-                                        return false;
+                                        return null;
                                     });
                                 }
                             });
