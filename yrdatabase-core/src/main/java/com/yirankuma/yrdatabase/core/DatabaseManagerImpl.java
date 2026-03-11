@@ -210,14 +210,51 @@ public class DatabaseManagerImpl implements DatabaseManager {
                 ? Double.MAX_VALUE
                 : (System.currentTimeMillis() / 1000.0) + SWEEP_BUFFER_SECONDS;
 
+        boolean autoRefresh = !all && config.getCaching().isAutoRefresh();
+
         redisProvider.zrangeByScore(PENDING_KEY, 0, maxScore).thenAccept(members -> {
             for (String cacheKey : members) {
-                processPendingKey(cacheKey);
+                if (autoRefresh) {
+                    refreshOrPersistPendingKey(cacheKey);
+                } else {
+                    processPendingKey(cacheKey);
+                }
             }
         }).exceptionally(e -> {
             log.error("Failed to scan pending set: {}", e.getMessage());
             return null;
         });
+    }
+
+    /**
+     * 当 autoRefresh 开启时，sweep 发现快到期的 key 优先延长 TTL（保活），
+     * 而非立即持久化。若 Redis key 已经过期，则回退到正常持久化。
+     * MySQL 写入由 autoSync 或 logout 时的 persistAndClear 负责。
+     */
+    private void refreshOrPersistPendingKey(String cacheKey) {
+        long ttl = config.getCaching().getDefaultTTL();
+        redisProvider.expire(cacheKey, Duration.ofSeconds(ttl))
+                .thenAccept(refreshed -> {
+                    if (refreshed) {
+                        // Key still alive in Redis — update pending score to new expiry
+                        double newExpireAt = System.currentTimeMillis() / 1000.0 + ttl;
+                        redisProvider.zadd(PENDING_KEY, newExpireAt, cacheKey)
+                                .exceptionally(e -> {
+                                    log.warn("autoRefresh sweep: failed to update pending score for {}: {}", cacheKey, e.getMessage());
+                                    return false;
+                                });
+                        log.debug("autoRefresh sweep: extended TTL for {}", cacheKey);
+                    } else {
+                        // Key already expired from Redis — fall back to normal persist path
+                        log.debug("autoRefresh sweep: key {} already expired, persisting", cacheKey);
+                        processPendingKey(cacheKey);
+                    }
+                })
+                .exceptionally(e -> {
+                    log.warn("autoRefresh sweep: expire failed for {}: {}", cacheKey, e.getMessage());
+                    processPendingKey(cacheKey);
+                    return null;
+                });
     }
 
     /**
