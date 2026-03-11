@@ -516,19 +516,11 @@ public class DatabaseManagerImpl implements DatabaseManager {
         if (persistProvider == null || !persistProvider.isConnected()) {
             return CompletableFuture.completedFuture(false);
         }
-
-        return persistProvider.upsert(table, data, "id").thenApply(ok -> {
-            // 持久化成功后从 pending 集合移除（ZREM 对不存在的 member 是 no-op）
-            if (ok && redisProvider != null && redisProvider.isConnected()) {
-                String cacheKey = buildCacheKey(table, key);
-                redisProvider.zrem(PENDING_KEY, cacheKey)
-                        .exceptionally(e -> {
-                            log.warn("Failed to remove {} from pending: {}", cacheKey, e.getMessage());
-                            return 0L;
-                        });
-            }
-            return ok;
-        });
+        // NOTE: do NOT zrem from pending here. Callers that own the key lifecycle
+        // (processPendingKey, processPendingKeySync, persistAndClear) do their own
+        // explicit zrem. persistOnly (autoSync path) intentionally keeps the key
+        // in pending so the sweep can continue to manage TTL refresh.
+        return persistProvider.upsert(table, data, "id");
     }
 
     @Override
@@ -550,6 +542,12 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
             return saveToPersist(table, key, data).thenCompose(saved -> {
                 if (saved) {
+                    // Remove from pending and delete Redis key
+                    redisProvider.zrem(PENDING_KEY, cacheKey)
+                            .exceptionally(e -> {
+                                log.warn("persistAndClear: failed to remove {} from pending: {}", cacheKey, e.getMessage());
+                                return 0L;
+                            });
                     return redisProvider.delete(cacheKey);
                 }
                 return CompletableFuture.completedFuture(false);
