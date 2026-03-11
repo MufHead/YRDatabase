@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Predicate;
 
 /**
  * Core implementation of DatabaseManager.
@@ -38,6 +39,13 @@ public class DatabaseManagerImpl implements DatabaseManager {
     private final Set<String> ensuredTables = ConcurrentHashMap.newKeySet();
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+
+    /**
+     * Optional predicate supplied by the platform layer.
+     * Receives the full cacheKey and returns true if the owning player is online.
+     * null = no check (always refresh when autoRefresh is enabled).
+     */
+    private volatile Predicate<String> onlineChecker = null;
 
     // pending 持久化集合 key，所有子服共享同一个 Redis sorted set
     private static final String PENDING_KEY = "yrdatabase:pending";
@@ -232,6 +240,14 @@ public class DatabaseManagerImpl implements DatabaseManager {
      * MySQL 写入由 autoSync 或 logout 时的 persistAndClear 负责。
      */
     private void refreshOrPersistPendingKey(String cacheKey) {
+        // If a platform-layer checker is registered and says the player is offline,
+        // fall through to normal persist instead of extending TTL.
+        if (onlineChecker != null && !onlineChecker.test(cacheKey)) {
+            log.debug("autoRefresh sweep: player offline for {}, falling back to persist", cacheKey);
+            processPendingKey(cacheKey);
+            return;
+        }
+
         long ttl = config.getCaching().getDefaultTTL();
         redisProvider.expire(cacheKey, Duration.ofSeconds(ttl))
                 .thenAccept(refreshed -> {
@@ -756,6 +772,13 @@ public class DatabaseManagerImpl implements DatabaseManager {
         ensuredTables.clear();
 
         log.info("YRDatabase shutdown complete");
+    }
+
+    // ==================== Online Checker ====================
+
+    @Override
+    public void setOnlineChecker(Predicate<String> checker) {
+        this.onlineChecker = checker;
     }
 
     // ==================== Utilities ====================

@@ -6,6 +6,7 @@ import com.yirankuma.yrdatabase.api.provider.PersistProvider;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
 
 /**
  * Main database manager interface.
@@ -104,6 +105,23 @@ public interface DatabaseManager extends AutoCloseable {
      * @return Repository instance
      */
     <T> Repository<T> getRepository(Class<T> entityClass);
+
+    // ==================== Online Checker ====================
+
+    /**
+     * Register a predicate that tells the core layer whether a given cache key
+     * belongs to an online player. Used by the sweep to decide whether to
+     * extend TTL (player online) or persist (player offline/unknown).
+     *
+     * <p>The predicate receives the raw cache key
+     * (e.g. {@code yrdatabase:yrcurrency_coin:some-uuid}) and returns
+     * {@code true} if the owning player is currently online on this server.
+     *
+     * <p>If not set (null), sweep always extends TTL when autoRefresh is enabled.
+     *
+     * @param checker predicate taking a cache key, returning true if owner is online
+     */
+    void setOnlineChecker(Predicate<String> checker);
 
     // ==================== Direct Provider Access ====================
 

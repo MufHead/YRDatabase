@@ -226,6 +226,19 @@ public class YRDatabaseAllay extends Plugin {
     private void registerListeners() {
         playerEventListener = new PlayerEventListener(this);
         Server.getInstance().getEventBus().registerListener(playerEventListener);
+
+        // Tell the database core how to check if a player is online.
+        // cacheKey format: "yrdatabase:{table}:{playerId}"
+        // Extract the last segment and test it against the online player set.
+        if (databaseManagerImpl != null) {
+            databaseManagerImpl.setOnlineChecker(cacheKey -> {
+                int last = cacheKey.lastIndexOf(':');
+                if (last < 0) return false;
+                String playerId = cacheKey.substring(last + 1);
+                return playerEventListener.isOnline(playerId);
+            });
+        }
+
         pluginLogger.info("Event listeners registered");
     }
 
