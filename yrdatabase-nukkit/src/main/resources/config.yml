@@ -42,11 +42,27 @@ persist:
 
 # Caching settings
 caching:
-  defaultTTL: 3600      # seconds
-  playerDataTTL: 7200   # seconds
+  # Redis key 默认存活时长（秒）。必须 > sweepIntervalSeconds，否则 key 在首次扫描前就过期。
+  defaultTTL: 3600
+  playerDataTTL: 7200
+
+  # 在线玩家 TTL 自动续期
+  # 约束：sweepIntervalSeconds ≤ refreshThreshold
   autoRefresh: true
+  refreshThreshold: 300
+
+  # 离线玩家数据自动持久化
+  # 约束：sweepIntervalSeconds ≤ autoSyncIntervalSeconds
   autoSyncEnabled: true
-  autoSyncIntervalSeconds: 300  # Sync every 5 minutes; set 0 or negative to disable
+  autoSyncIntervalSeconds: 300
+
+  # pending 集合扫描间隔（秒）。
+  # 必须同时满足：
+  #   sweepIntervalSeconds ≤ refreshThreshold
+  #   sweepIntervalSeconds ≤ autoSyncIntervalSeconds
+  #   defaultTTL > sweepIntervalSeconds
+  # 推荐：min(refreshThreshold, autoSyncIntervalSeconds) 的一半
+  sweepIntervalSeconds: 30
 
 # Session management
 session:

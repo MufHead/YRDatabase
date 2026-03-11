@@ -122,7 +122,7 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
     /**
      * 启动定期扫描任务。
-     * 每 SWEEP_INTERVAL_SECONDS 秒扫一次 pending 集合：
+     * 每 sweepIntervalSeconds 秒扫一次 pending 集合：
      *   - autoRefresh 扫描：TTL ≤ refreshThreshold 且玩家在线 → 续期
      *   - autoSync 扫描：TTL ≤ autoSyncIntervalSeconds 且玩家离线 → 持久化
      */
@@ -130,22 +130,46 @@ public class DatabaseManagerImpl implements DatabaseManager {
         if (redisProvider == null || persistProvider == null) {
             return;
         }
+
+        long sweepInterval = config.getCaching().getSweepIntervalSeconds();
+        if (sweepInterval <= 0) sweepInterval = SWEEP_INTERVAL_SECONDS;
+
+        // Constraint validation — warn but don't abort
+        long refreshThreshold = config.getCaching().isAutoRefresh()
+                ? config.getCaching().getRefreshThreshold() : Long.MAX_VALUE;
+        long syncThreshold = config.getCaching().isAutoSyncEnabled()
+                ? config.getCaching().getAutoSyncIntervalSeconds() : Long.MAX_VALUE;
+        long defaultTTL = config.getCaching().getDefaultTTL();
+
+        if (sweepInterval > refreshThreshold) {
+            log.warn("Config warning: sweepIntervalSeconds({}) > refreshThreshold({})." +
+                    " TTL refresh may not fire before key expiry. Set sweepIntervalSeconds ≤ refreshThreshold.",
+                    sweepInterval, refreshThreshold);
+        }
+        if (sweepInterval > syncThreshold) {
+            log.warn("Config warning: sweepIntervalSeconds({}) > autoSyncIntervalSeconds({})." +
+                    " Offline-player persist may not fire before key expiry. Set sweepIntervalSeconds ≤ autoSyncIntervalSeconds.",
+                    sweepInterval, syncThreshold);
+        }
+        if (defaultTTL <= sweepInterval) {
+            log.warn("Config warning: defaultTTL({}) ≤ sweepIntervalSeconds({})." +
+                    " Keys may expire before the first sweep runs. Set defaultTTL > sweepIntervalSeconds.",
+                    defaultTTL, sweepInterval);
+        }
+
+        final long finalSweepInterval = sweepInterval;
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 sweepPending(false);
             } catch (Exception e) {
                 log.error("Pending sweep error: {}", e.getMessage());
             }
-        }, SWEEP_INTERVAL_SECONDS, SWEEP_INTERVAL_SECONDS, TimeUnit.SECONDS);
+        }, finalSweepInterval, finalSweepInterval, TimeUnit.SECONDS);
 
-        long refreshThreshold = config.getCaching().isAutoRefresh()
-                ? config.getCaching().getRefreshThreshold() : -1;
-        long syncThreshold = config.getCaching().isAutoSyncEnabled()
-                ? config.getCaching().getAutoSyncIntervalSeconds() : -1;
         log.info("Pending sweep started (interval={}s, refreshThreshold={}s, syncThreshold={}s)",
-                SWEEP_INTERVAL_SECONDS,
-                refreshThreshold >= 0 ? String.valueOf(refreshThreshold) : "disabled",
-                syncThreshold >= 0 ? String.valueOf(syncThreshold) : "disabled");
+                finalSweepInterval,
+                config.getCaching().isAutoRefresh() ? config.getCaching().getRefreshThreshold() : -1,
+                config.getCaching().isAutoSyncEnabled() ? config.getCaching().getAutoSyncIntervalSeconds() : -1);
     }
 
     /**

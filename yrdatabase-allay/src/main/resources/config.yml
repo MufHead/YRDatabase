@@ -40,13 +40,30 @@ persist:
 
 # Caching behavior
 caching:
+  # Redis key 默认存活时长（秒）。必须 > sweepIntervalSeconds，否则 key 在首次扫描前就过期。
   defaultTTL: 3600
+
   playerDataTTL: 7200
+
+  # 在线玩家 TTL 自动续期
+  # 当 Redis key 剩余 TTL ≤ refreshThreshold 秒且玩家在线时，自动将 TTL 重置为 defaultTTL。
+  # 约束：sweepIntervalSeconds ≤ refreshThreshold（否则续期扫描可能赶不上 key 过期）
   autoRefresh: true
   refreshThreshold: 300
-  # Auto-sync: periodically persist all CACHE_FIRST data to DB (no need for sub-plugins to implement their own flush scheduler)
+
+  # 离线玩家数据自动持久化
+  # 当 Redis key 剩余 TTL ≤ autoSyncIntervalSeconds 秒且玩家离线时，触发写入 MySQL/SQLite。
+  # 约束：sweepIntervalSeconds ≤ autoSyncIntervalSeconds（否则持久化扫描可能赶不上 key 过期）
   autoSyncEnabled: true
-  autoSyncIntervalSeconds: 300  # Sync every 5 minutes; set 0 or negative to disable
+  autoSyncIntervalSeconds: 300
+
+  # pending 集合扫描间隔（秒）。
+  # 必须同时满足以下三个约束，违反时启动时会打 WARN 日志：
+  #   sweepIntervalSeconds ≤ refreshThreshold        （保证续期扫描及时触发）
+  #   sweepIntervalSeconds ≤ autoSyncIntervalSeconds  （保证持久化扫描及时触发）
+  #   defaultTTL > sweepIntervalSeconds               （保证 key 至少能被扫到一次）
+  # 推荐值：min(refreshThreshold, autoSyncIntervalSeconds) 的一半
+  sweepIntervalSeconds: 30
 
 # Session management
 session:

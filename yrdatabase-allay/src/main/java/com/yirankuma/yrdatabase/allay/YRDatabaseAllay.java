@@ -176,6 +176,7 @@ public class YRDatabaseAllay extends Plugin {
         cachingConfig.setRefreshThreshold(config.getLong("caching.refreshThreshold", 300));
         cachingConfig.setAutoSyncEnabled(config.getBoolean("caching.autoSyncEnabled", true));
         cachingConfig.setAutoSyncIntervalSeconds(config.getInt("caching.autoSyncIntervalSeconds", 300));
+        cachingConfig.setSweepIntervalSeconds(config.getInt("caching.sweepIntervalSeconds", 30));
 
         // Session
         DatabaseConfig.SessionConfig sessionConfig = dbConfig.getSession();
