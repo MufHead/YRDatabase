@@ -494,7 +494,13 @@ public class DatabaseManagerImpl implements DatabaseManager {
 
         return redisProvider.get(cacheKey).thenCompose(cached -> {
             if (cached.isEmpty()) {
-                return CompletableFuture.completedFuture(true);
+                // Redis key already expired or not found; remove from pending to avoid stale entries
+                log.info("persistOnly: Redis key not found for {}/{}, removing from pending", table, key);
+                redisProvider.zrem(PENDING_KEY, cacheKey).exceptionally(e -> {
+                    log.warn("Failed to remove stale pending entry {}: {}", cacheKey, e.getMessage());
+                    return 0L;
+                });
+                return CompletableFuture.completedFuture(false);
             }
 
             @SuppressWarnings("unchecked")
