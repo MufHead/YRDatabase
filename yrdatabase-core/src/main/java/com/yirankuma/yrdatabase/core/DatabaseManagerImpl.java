@@ -426,6 +426,13 @@ public class DatabaseManagerImpl implements DatabaseManager {
                         String json = gson.toJson(persisted.get());
                         long ttl = config.getCaching().getDefaultTTL();
                         redisProvider.setEx(cacheKey, json, Duration.ofSeconds(ttl));
+                        // Register in pending so sweep can manage TTL refresh for this key
+                        double expireAt = System.currentTimeMillis() / 1000.0 + ttl;
+                        redisProvider.zadd(PENDING_KEY, expireAt, cacheKey)
+                                .exceptionally(e -> {
+                                    log.warn("write-back: failed to register pending for {}: {}", cacheKey, e.getMessage());
+                                    return false;
+                                });
                     }
                     return CompletableFuture.completedFuture(persisted);
                 });
