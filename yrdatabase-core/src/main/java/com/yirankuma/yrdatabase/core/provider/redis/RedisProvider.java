@@ -268,8 +268,11 @@ public class RedisProvider implements CacheProvider {
 
     @Override
     public CompletableFuture<Boolean> setNxEx(String key, String value, Duration ttl) {
-        return executeAsync(cmd -> cmd.set(key, value,
-                io.lettuce.core.SetArgs.Builder.nx().ex(ttl.getSeconds())))
+        // Do NOT use SetArgs.Builder (inner class) — shadow relocation does not update
+        // InnerClasses attributes, causing NoClassDefFoundError at runtime.
+        // Instantiate SetArgs directly to avoid referencing the inner class.
+        io.lettuce.core.SetArgs args = new io.lettuce.core.SetArgs().nx().ex(ttl.getSeconds());
+        return executeAsync(cmd -> cmd.set(key, value, args))
                 .thenApply("OK"::equals);
     }
 
